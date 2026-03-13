@@ -35,7 +35,7 @@ export class AuthController {
     try {
       const displayName = `${body.firstName} ${body.lastName}`;
 
-      return await this.usersService.create({
+      const user = await this.usersService.create({
         email: body.email,
         password: hashedPassword,
         firstName: body.firstName,
@@ -47,6 +47,15 @@ export class AuthController {
           }
         }
       });
+
+      // Automatically login the user after registration
+      const { access_token } = await this.authService.login(user);
+      
+      const { password, ...userWithoutPassword } = user;
+      return {
+        user: userWithoutPassword,
+        access_token,
+      };
     } catch (error: any) {
       console.error('Registration error:', error);
       // Check for unique constraint violation on slug
