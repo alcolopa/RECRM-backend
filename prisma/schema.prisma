@@ -15,6 +15,63 @@ enum UserRole {
   SUPPORT
 }
 
+enum ContactStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  ACTIVE
+  INACTIVE
+  LOST
+}
+
+enum ContactType {
+  BUYER
+  SELLER
+}
+
+enum FinancingType {
+  CASH
+  MORTGAGE
+}
+
+enum BuyingTimeline {
+  ASAP
+  ONE_TO_THREE_MONTHS
+  THREE_TO_SIX_MONTHS
+  SIX_PLUS_MONTHS
+  JUST_LOOKING
+}
+
+enum PurchasePurpose {
+  PRIMARY_RESIDENCE
+  INVESTMENT
+  VACATION_HOME
+  RELOCATION
+}
+
+enum ListingType {
+  EXCLUSIVE
+  NON_EXCLUSIVE
+}
+
+enum SellingTimeline {
+  ASAP
+  ONE_TO_THREE_MONTHS
+  THREE_TO_SIX_MONTHS
+  SIX_PLUS_MONTHS
+  JUST_EXPLORING
+}
+
+enum ReasonForSelling {
+  UPGRADE
+  RELOCATION
+  INVESTMENT_EXIT
+  FINANCIAL_NEED
+  DIVORCE
+  INHERITANCE
+  OTHER
+}
+
 enum LeadStatus {
   NEW
   CONTACTED
@@ -43,13 +100,13 @@ enum PropertyStatus {
 }
 
 enum PropertyType {
-  HOUSE
   APARTMENT
-  CONDO
-  TOWNHOUSE
+  HOUSE
+  VILLA
   LAND
   COMMERCIAL
-  INDUSTRIAL
+  OFFICE
+  RETAIL
 }
 
 enum TaskStatus {
@@ -65,11 +122,6 @@ enum ActivityType {
   MEETING
   SITE_VISIT
   NOTE
-}
-
-enum ContactType {
-  BUYER
-  SELLER
 }
 
 // --- Entities ---
@@ -113,6 +165,7 @@ model User {
   assignedTasks      Task[]     @relation("AssignedUser")
   createdActivities  Activity[] @relation("CreatedBy")
   createdNotes       Note[]     @relation("CreatedBy")
+  assignedContacts   Contact[]  @relation("AssignedAgent")
 
   @@index([organizationId])
   @@index([email])
@@ -120,23 +173,94 @@ model User {
 
 model Contact {
   id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   firstName       String
   lastName        String
   email           String?
-  phone           String?
-  type            ContactType  @default(BUYER)
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  phone           String
+  secondaryPhone  String?
+  type            ContactType
+  leadSource      String?
+  assignedAgentId String?
+  assignedAgent   User?        @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  status          ContactStatus @default(NEW)
+  notes           String?      @db.Text
+  tags            String[]     @default([])
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+  lastContactedAt DateTime?
 
-  deals       Deal[]
-  activities  Activity[]
-  notes       Note[]
-  tags        EntityTag[]
+  buyerProfile    BuyerProfile?
+  sellerProfile   SellerProfile?
+  
+  deals           Deal[]
+  activities      Activity[]
+  contactNotes    Note[]       @relation("ContactNotes")
+  entityTags      EntityTag[]
 
   @@index([organizationId])
   @@index([email])
+  @@index([assignedAgentId])
+}
+
+model BuyerProfile {
+  id                String         @id @default(uuid())
+  contactId         String         @unique
+  contact           Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  minBudget         Decimal?
+  maxBudget         Decimal?
+  financingType     FinancingType?
+  preApproved       Boolean        @default(false)
+  preApprovedAmount Decimal?
+  downPayment       Decimal?
+
+  // Preferences
+  propertyTypes     PropertyType[] @default([])
+  minBedrooms       Int?
+  minBathrooms      Float?
+  minArea           Float?
+  maxArea           Float?
+
+  // Location
+  preferredCities        String[] @default([])
+  preferredNeighborhoods String[] @default([])
+
+  // Lifestyle
+  parkingRequired   Boolean @default(false)
+  gardenRequired    Boolean @default(false)
+  furnished         Boolean @default(false)
+  newConstruction   Boolean @default(false)
+
+  // Timeline & Motivation
+  buyingTimeline    BuyingTimeline?
+  purchasePurpose   PurchasePurpose?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model SellerProfile {
+  id                String           @id @default(uuid())
+  contactId         String           @unique
+  contact           Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  minimumPrice      Decimal?
+  mortgageBalance   Decimal?
+
+  // Sale Conditions
+  listingType       ListingType?
+  readyToList       Boolean          @default(false)
+  occupied          Boolean          @default(false)
+  tenantLeaseEndDate DateTime?
+
+  // Timeline & Motivation
+  sellingTimeline   SellingTimeline?
+  reasonForSelling  ReasonForSelling?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  properties        Property[]       @relation("SellerProperty")
 }
 
 model Lead {
@@ -184,6 +308,8 @@ model Property {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
+  sellerProfileId String?
+  sellerProfile   SellerProfile? @relation("SellerProperty", fields: [sellerProfileId], references: [id])
   deals           Deal[]
   tags            EntityTag[]
 
@@ -252,7 +378,7 @@ model Note {
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contactId       String?
-  contact         Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact         Contact?     @relation("ContactNotes", fields: [contactId], references: [id], onDelete: Cascade)
   createdById     String
   createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
   createdAt       DateTime     @default(now())
@@ -306,6 +432,7 @@ model EntityTag {
   deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([tagId])
   @@index([contactId])

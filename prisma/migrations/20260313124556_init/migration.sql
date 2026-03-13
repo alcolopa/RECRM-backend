@@ -2,6 +2,30 @@
 CREATE TYPE "UserRole" AS ENUM ('OWNER', 'ADMIN', 'AGENT', 'SUPPORT');
 
 -- CreateEnum
+CREATE TYPE "ContactStatus" AS ENUM ('NEW', 'CONTACTED', 'QUALIFIED', 'ACTIVE', 'INACTIVE', 'LOST');
+
+-- CreateEnum
+CREATE TYPE "ContactType" AS ENUM ('BUYER', 'SELLER');
+
+-- CreateEnum
+CREATE TYPE "FinancingType" AS ENUM ('CASH', 'MORTGAGE');
+
+-- CreateEnum
+CREATE TYPE "BuyingTimeline" AS ENUM ('ASAP', 'ONE_TO_THREE_MONTHS', 'THREE_TO_SIX_MONTHS', 'SIX_PLUS_MONTHS', 'JUST_LOOKING');
+
+-- CreateEnum
+CREATE TYPE "PurchasePurpose" AS ENUM ('PRIMARY_RESIDENCE', 'INVESTMENT', 'VACATION_HOME', 'RELOCATION');
+
+-- CreateEnum
+CREATE TYPE "ListingType" AS ENUM ('EXCLUSIVE', 'NON_EXCLUSIVE');
+
+-- CreateEnum
+CREATE TYPE "SellingTimeline" AS ENUM ('ASAP', 'ONE_TO_THREE_MONTHS', 'THREE_TO_SIX_MONTHS', 'SIX_PLUS_MONTHS', 'JUST_EXPLORING');
+
+-- CreateEnum
+CREATE TYPE "ReasonForSelling" AS ENUM ('UPGRADE', 'RELOCATION', 'INVESTMENT_EXIT', 'FINANCIAL_NEED', 'DIVORCE', 'INHERITANCE', 'OTHER');
+
+-- CreateEnum
 CREATE TYPE "LeadStatus" AS ENUM ('NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'NEGOTIATION', 'LOST', 'CLOSED_WON');
 
 -- CreateEnum
@@ -9,6 +33,9 @@ CREATE TYPE "DealStage" AS ENUM ('DISCOVERY', 'QUALIFICATION', 'PRESENTATION', '
 
 -- CreateEnum
 CREATE TYPE "PropertyStatus" AS ENUM ('AVAILABLE', 'UNDER_CONTRACT', 'SOLD', 'RENTED', 'OFF_MARKET');
+
+-- CreateEnum
+CREATE TYPE "PropertyType" AS ENUM ('APARTMENT', 'HOUSE', 'VILLA', 'LAND', 'COMMERCIAL', 'OFFICE', 'RETAIL');
 
 -- CreateEnum
 CREATE TYPE "TaskStatus" AS ENUM ('TODO', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
@@ -31,7 +58,10 @@ CREATE TABLE "Organization" (
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "name" TEXT,
+    "password" TEXT NOT NULL,
+    "firstName" TEXT,
+    "lastName" TEXT,
+    "avatar" TEXT,
     "role" "UserRole" NOT NULL DEFAULT 'AGENT',
     "organizationId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -43,15 +73,79 @@ CREATE TABLE "User" (
 -- CreateTable
 CREATE TABLE "Contact" (
     "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "email" TEXT,
-    "phone" TEXT,
-    "organizationId" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "secondaryPhone" TEXT,
+    "type" "ContactType" NOT NULL,
+    "leadSource" TEXT,
+    "assignedAgentId" TEXT,
+    "status" "ContactStatus" NOT NULL DEFAULT 'NEW',
+    "notes" TEXT,
+    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "lastContactedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Contact_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BuyerProfile" (
+    "id" TEXT NOT NULL,
+    "contactId" TEXT NOT NULL,
+    "minBudget" DECIMAL(65,30),
+    "maxBudget" DECIMAL(65,30),
+    "financingType" "FinancingType",
+    "preApproved" BOOLEAN NOT NULL DEFAULT false,
+    "preApprovedAmount" DECIMAL(65,30),
+    "downPayment" DECIMAL(65,30),
+    "propertyTypes" "PropertyType"[] DEFAULT ARRAY[]::"PropertyType"[],
+    "minBedrooms" INTEGER,
+    "minBathrooms" DOUBLE PRECISION,
+    "minArea" DOUBLE PRECISION,
+    "maxArea" DOUBLE PRECISION,
+    "preferredCities" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "preferredNeighborhoods" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "parkingRequired" BOOLEAN NOT NULL DEFAULT false,
+    "gardenRequired" BOOLEAN NOT NULL DEFAULT false,
+    "furnished" BOOLEAN NOT NULL DEFAULT false,
+    "newConstruction" BOOLEAN NOT NULL DEFAULT false,
+    "buyingTimeline" "BuyingTimeline",
+    "purchasePurpose" "PurchasePurpose",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Contact_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "BuyerProfile_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SellerProfile" (
+    "id" TEXT NOT NULL,
+    "contactId" TEXT NOT NULL,
+    "propertyId" TEXT,
+    "expectedPrice" DECIMAL(65,30),
+    "minimumPrice" DECIMAL(65,30),
+    "mortgageBalance" DECIMAL(65,30),
+    "propertyAddress" TEXT,
+    "propertyType" "PropertyType",
+    "bedrooms" INTEGER,
+    "bathrooms" DOUBLE PRECISION,
+    "area" DOUBLE PRECISION,
+    "lotSize" DOUBLE PRECISION,
+    "yearBuilt" INTEGER,
+    "listingType" "ListingType",
+    "readyToList" BOOLEAN NOT NULL DEFAULT false,
+    "occupied" BOOLEAN NOT NULL DEFAULT false,
+    "tenantLeaseEndDate" TIMESTAMP(3),
+    "sellingTimeline" "SellingTimeline",
+    "reasonForSelling" "ReasonForSelling",
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SellerProfile_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -75,9 +169,21 @@ CREATE TABLE "Lead" (
 CREATE TABLE "Property" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
+    "description" TEXT,
     "address" TEXT NOT NULL,
+    "city" TEXT,
+    "state" TEXT,
+    "zipCode" TEXT,
     "price" DECIMAL(65,30),
     "status" "PropertyStatus" NOT NULL DEFAULT 'AVAILABLE',
+    "type" "PropertyType" NOT NULL DEFAULT 'HOUSE',
+    "bedrooms" INTEGER,
+    "bathrooms" DOUBLE PRECISION,
+    "area" DOUBLE PRECISION,
+    "lotSize" DOUBLE PRECISION,
+    "yearBuilt" INTEGER,
+    "features" TEXT[],
+    "images" TEXT[],
     "organizationId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -179,6 +285,7 @@ CREATE TABLE "EntityTag" (
     "propertyId" TEXT,
     "dealId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "EntityTag_pkey" PRIMARY KEY ("id")
 );
@@ -203,6 +310,18 @@ CREATE INDEX "Contact_organizationId_idx" ON "Contact"("organizationId");
 
 -- CreateIndex
 CREATE INDEX "Contact_email_idx" ON "Contact"("email");
+
+-- CreateIndex
+CREATE INDEX "Contact_assignedAgentId_idx" ON "Contact"("assignedAgentId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BuyerProfile_contactId_key" ON "BuyerProfile"("contactId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SellerProfile_contactId_key" ON "SellerProfile"("contactId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SellerProfile_propertyId_key" ON "SellerProfile"("propertyId");
 
 -- CreateIndex
 CREATE INDEX "Lead_organizationId_idx" ON "Lead"("organizationId");
@@ -263,6 +382,18 @@ ALTER TABLE "User" ADD CONSTRAINT "User_organizationId_fkey" FOREIGN KEY ("organ
 
 -- AddForeignKey
 ALTER TABLE "Contact" ADD CONSTRAINT "Contact_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Contact" ADD CONSTRAINT "Contact_assignedAgentId_fkey" FOREIGN KEY ("assignedAgentId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BuyerProfile" ADD CONSTRAINT "BuyerProfile_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SellerProfile" ADD CONSTRAINT "SellerProfile_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SellerProfile" ADD CONSTRAINT "SellerProfile_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Lead" ADD CONSTRAINT "Lead_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
