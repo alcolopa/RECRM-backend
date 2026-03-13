@@ -1,0 +1,61 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "RealEstateCRM backend (NestJS)",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "db:setup": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
+    "lint": "echo \"No linter configured yet\"",
+    "test": "echo \"No tests configured yet\""
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "keywords": [
+    "nestjs",
+    "real-estate",
+    "crm",
+    "backend"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.16",
+    "@nestjs/schematics": "^11.0.9",
+    "@nestjs/testing": "^11.1.15",
+    "@types/bcrypt": "^6.0.0",
+    "@types/node": "^25.3.5",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/pg": "^8.18.0",
+    "prisma": "^7.4.2",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.15",
+    "@nestjs/config": "^4.0.3",
+    "@nestjs/core": "^11.1.15",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/mapped-types": "^2.1.0",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.1.16",
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.4.2",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.20.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  }
+}

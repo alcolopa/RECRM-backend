@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Enums ---
+
+enum UserRole {
+  OWNER
+  ADMIN
+  AGENT
+  SUPPORT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  LOST
+  CLOSED_WON
+}
+
+enum DealStage {
+  DISCOVERY
+  QUALIFICATION
+  PRESENTATION
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  UNDER_CONTRACT
+  SOLD
+  RENTED
+  OFF_MARKET
+}
+
+enum PropertyType {
+  HOUSE
+  APARTMENT
+  CONDO
+  TOWNHOUSE
+  LAND
+  COMMERCIAL
+  INDUSTRIAL
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  SITE_VISIT
+  NOTE
+}
+
+enum ContactType {
+  BUYER
+  SELLER
+}
+
+// --- Entities ---
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  contacts    Contact[]
+  leads       Lead[]
+  properties  Property[]
+  deals       Deal[]
+  activities  Activity[]
+  tasks       Task[]
+  notes       Note[]
+  files       File[]
+  tags        Tag[]
+
+  @@index([id])
+}
+
+model User {
+  id              String       @id @default(uuid())
+  email           String       @unique
+  password        String
+  firstName       String?
+  lastName        String?
+  avatar          String?      // URL to profile picture
+  role            UserRole     @default(AGENT)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  assignedLeads      Lead[]     @relation("AssignedUser")
+  assignedDeals      Deal[]     @relation("AssignedUser")
+  assignedTasks      Task[]     @relation("AssignedUser")
+  createdActivities  Activity[] @relation("CreatedBy")
+  createdNotes       Note[]     @relation("CreatedBy")
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model Contact {
+  id              String       @id @default(uuid())
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  type            ContactType  @default(BUYER)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  deals       Deal[]
+  activities  Activity[]
+  notes       Note[]
+  tags        EntityTag[]
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model Lead {
+  id              String       @id @default(uuid())
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  status          LeadStatus   @default(NEW)
+  source          String?
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedUserId  String?
+  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  tags            EntityTag[]
+
+  @@index([organizationId])
+  @@index([assignedUserId])
+  @@index([email])
+}
+
+model Property {
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  address         String
+  city            String?
+  state           String?
+  zipCode         String?
+  price           Decimal?
+  status          PropertyStatus @default(AVAILABLE)
+  type            PropertyType   @default(HOUSE)
+  bedrooms        Int?
+  bathrooms       Float?
+  area            Float?         // Square footage or meters
+  lotSize         Float?
+  yearBuilt       Int?
+  features        String[]       // e.g. ["Pool", "Garage", "Garden"]
+  images          String[]       // Array of image URLs
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  deals           Deal[]
+  tags            EntityTag[]
+
+  @@index([organizationId])
+}
+
+model Deal {
+  id              String       @id @default(uuid())
+  title           String
+  value           Decimal?
+  stage           DealStage    @default(DISCOVERY)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  propertyId      String?
+  property        Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  assignedUserId  String?
+  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  tags            EntityTag[]
+
+  @@index([organizationId])
+  @@index([assignedUserId])
+}
+
+model Activity {
+  id              String       @id @default(uuid())
+  type            ActivityType @default(NOTE)
+  subject         String
+  content         String?
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Task {
+  id              String       @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus   @default(TODO)
+  dueDate         DateTime?
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedUserId  String?
+  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([assignedUserId])
+}
+
+model Note {
+  id              String       @id @default(uuid())
+  content         String
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model File {
+  id              String       @id @default(uuid())
+  name            String
+  url             String
+  mimeType        String?
+  size            Int?
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Tag {
+  id              String       @id @default(uuid())
+  name            String
+  color           String?
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  entityTags      EntityTag[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model EntityTag {
+  id          String   @id @default(uuid())
+  tagId       String
+  tag         Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  // Relations to different entities (polymorphic-ish with explicit relations)
+  contactId   String?
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  leadId      String?
+  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  propertyId  String?
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([tagId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([propertyId])
+  @@index([dealId])
+}
