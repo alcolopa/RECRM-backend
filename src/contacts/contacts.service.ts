@@ -47,9 +47,12 @@ export class ContactsService {
     });
   }
 
-  async findAll(organizationId: string): Promise<Contact[]> {
+  async findAll(organizationId: string, type?: ContactType): Promise<Contact[]> {
     return this.prisma.contact.findMany({
-      where: { organizationId },
+      where: { 
+        organizationId,
+        ...(type ? { type } : {}),
+      },
       include: {
         buyerProfile: true,
         sellerProfile: true,

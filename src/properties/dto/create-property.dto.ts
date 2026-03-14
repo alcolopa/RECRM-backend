@@ -74,11 +74,10 @@ export class CreatePropertyDto {
   @IsOptional()
   features?: string[];
 
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  images?: string[];
-
   @IsUUID()
   organizationId!: string;
+
+  @IsUUID()
+  @IsOptional()
+  sellerProfileId?: string;
 }

@@ -15,8 +15,11 @@ export class ContactsController {
   }
 
   @Get()
-  findAll(@Query('organizationId') organizationId: string) {
-    return this.contactsService.findAll(organizationId);
+  findAll(
+    @Query('organizationId') organizationId: string,
+    @Query('type') type?: string,
+  ) {
+    return this.contactsService.findAll(organizationId, type as any);
   }
 
   @Get(':id')

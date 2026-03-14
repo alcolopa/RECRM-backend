@@ -18,6 +18,14 @@ export class PropertiesService {
   async findAll(organizationId?: string) {
     return this.prisma.property.findMany({
       where: organizationId ? { organizationId } : {},
+      include: {
+        propertyImages: true,
+        sellerProfile: {
+          include: {
+            contact: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -26,7 +34,13 @@ export class PropertiesService {
     const property = await this.prisma.property.findUnique({
       where: { id },
       include: {
+        propertyImages: true,
         deals: true,
+        sellerProfile: {
+          include: {
+            contact: true,
+          },
+        },
         tags: {
           include: {
             tag: true,
@@ -47,6 +61,14 @@ export class PropertiesService {
       return await this.prisma.property.update({
         where: { id },
         data: updatePropertyDto,
+        include: {
+          propertyImages: true,
+          sellerProfile: {
+            include: {
+              contact: true,
+            },
+          },
+        },
       });
     } catch (error) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -60,6 +82,25 @@ export class PropertiesService {
       });
     } catch (error) {
       throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+  }
+
+  async addImage(propertyId: string, url: string) {
+    return this.prisma.propertyImage.create({
+      data: {
+        url,
+        propertyId,
+      },
+    });
+  }
+
+  async removeImage(imageId: string) {
+    try {
+      return await this.prisma.propertyImage.delete({
+        where: { id: imageId },
+      });
+    } catch (error) {
+      throw new NotFoundException(`Image with ID ${imageId} not found`);
     }
   }
 }

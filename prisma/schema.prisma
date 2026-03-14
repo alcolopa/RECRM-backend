@@ -302,7 +302,7 @@ model Property {
   lotSize         Float?
   yearBuilt       Int?
   features        String[]       // e.g. ["Pool", "Garage", "Garden"]
-  images          String[]       // Array of image URLs
+  propertyImages  PropertyImage[]
   organizationId  String
   organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt       DateTime       @default(now())
@@ -314,6 +314,17 @@ model Property {
   tags            EntityTag[]
 
   @@index([organizationId])
+}
+
+model PropertyImage {
+  id         String   @id @default(uuid())
+  url        String
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([propertyId])
 }
 
 model Deal {
