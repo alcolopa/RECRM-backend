@@ -18,7 +18,7 @@ export class UploadService {
   ) {
     const destination = this.configService.get<string>('UPLOAD_DESTINATION')?.toLowerCase().replace(/['"]/g, '');
     this.useS3 = destination === 's3';
-    this.publicUrl = this.configService.get<string>('AWS_S3_PUBLIC_URL')?.replace(/['"]/g, '');
+    this.publicUrl = (this.configService.get<string>('AWS_S3_PUBLIC_URL') || 'http://localhost:3000/uploads').replace(/['"]/g, '');
     
     this.logger.log(`Upload Service initialized. Destination: ${this.useS3 ? 'S3' : 'Local'}`);
     this.logger.log(`Public URL: ${this.publicUrl}`);
@@ -66,8 +66,8 @@ export class UploadService {
       const uploadPath = join(process.cwd(), 'uploads', key);
       try {
         await fs.unlink(uploadPath);
-      } catch (error) {
-        this.logger.warn(`Failed to delete local file ${key}: ${error.message}`);
+      } catch (error: any) {
+        this.logger.warn(`Failed to delete local file ${key}: ${error?.message || 'Unknown error'}`);
       }
     }
   }
@@ -76,7 +76,7 @@ export class UploadService {
    * Constructs the full public URL from a file key (filename).
    * This is where "links are created on the fly" using the .env value.
    */
-  getFileUrl(key: string): string {
+  getFileUrl(key: string | null | undefined): string | null {
     if (!key) return null;
     
     // If it's already a full URL (legacy support for local drive absolute paths)

@@ -10,10 +10,10 @@ export class S3Service {
   private readonly logger = new Logger(S3Service.name);
 
   constructor(private configService: ConfigService) {
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
-    const region = this.configService.get<string>('AWS_REGION');
-    this.bucket = this.configService.get<string>('AWS_S3_BUCKET');
+    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') as string;
+    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') as string;
+    const region = this.configService.get<string>('AWS_REGION') as string;
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET') as string;
 
     this.s3Client = new S3Client({
       region,
@@ -24,7 +24,7 @@ export class S3Service {
     });
   }
 
-  async uploadFile(file: Express.Multer.File, key: string): Promise<string> {
+  async uploadFile(file: any, key: string): Promise<string> {
     try {
       const upload = new Upload({
         client: this.s3Client,
@@ -33,14 +33,14 @@ export class S3Service {
           Key: key,
           Body: file.buffer,
           ContentType: file.mimetype,
-          ACL: 'public-read', // Assuming public read is okay for this CRM
+          ACL: 'public-read',
         },
       });
 
       await upload.done();
-      return key; // Just return the key
-    } catch (error) {
-      this.logger.error(`Error uploading to S3: ${error.message}`);
+      return key;
+    } catch (error: any) {
+      this.logger.error(`Error uploading to S3: ${error?.message || 'Unknown error'}`);
       throw error;
     }
   }
@@ -53,8 +53,8 @@ export class S3Service {
           Key: key,
         }),
       );
-    } catch (error) {
-      this.logger.error(`Error deleting from S3: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(`Error deleting from S3: ${error?.message || 'Unknown error'}`);
       throw error;
     }
   }
