@@ -7,25 +7,43 @@ import { UpdatePropertyDto } from './dto/update-property.dto';
 export class PropertiesService {
   constructor(private prisma: PrismaService) {}
 
+  private readonly propertyIncludes = {
+    propertyImages: true,
+    propertyFeatures: {
+      include: {
+        feature: true,
+      },
+    },
+    sellerProfile: {
+      include: {
+        contact: true,
+      },
+    },
+  };
+
   async create(createPropertyDto: CreatePropertyDto) {
+    const { featureIds, ...rest } = createPropertyDto;
     return this.prisma.property.create({
       data: {
-        ...createPropertyDto,
+        ...rest,
+        ...(featureIds && featureIds.length > 0
+          ? {
+              propertyFeatures: {
+                create: featureIds.map((featureId) => ({
+                  featureId,
+                })),
+              },
+            }
+          : {}),
       },
+      include: this.propertyIncludes,
     });
   }
 
   async findAll(organizationId?: string) {
     return this.prisma.property.findMany({
       where: organizationId ? { organizationId } : {},
-      include: {
-        propertyImages: true,
-        sellerProfile: {
-          include: {
-            contact: true,
-          },
-        },
-      },
+      include: this.propertyIncludes,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -34,13 +52,8 @@ export class PropertiesService {
     const property = await this.prisma.property.findUnique({
       where: { id },
       include: {
-        propertyImages: true,
+        ...this.propertyIncludes,
         deals: true,
-        sellerProfile: {
-          include: {
-            contact: true,
-          },
-        },
         tags: {
           include: {
             tag: true,
@@ -57,18 +70,34 @@ export class PropertiesService {
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto) {
+    const { featureIds, ...rest } = updatePropertyDto;
+
     try {
-      return await this.prisma.property.update({
-        where: { id },
-        data: updatePropertyDto,
-        include: {
-          propertyImages: true,
-          sellerProfile: {
-            include: {
-              contact: true,
+      // If featureIds is provided, replace all features
+      if (featureIds !== undefined) {
+        // Delete existing property features
+        await this.prisma.propertyFeature.deleteMany({
+          where: { propertyId: id },
+        });
+
+        return await this.prisma.property.update({
+          where: { id },
+          data: {
+            ...rest,
+            propertyFeatures: {
+              create: featureIds.map((featureId) => ({
+                featureId,
+              })),
             },
           },
-        },
+          include: this.propertyIncludes,
+        });
+      }
+
+      return await this.prisma.property.update({
+        where: { id },
+        data: rest,
+        include: this.propertyIncludes,
       });
     } catch (error) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -102,5 +131,11 @@ export class PropertiesService {
     } catch (error) {
       throw new NotFoundException(`Image with ID ${imageId} not found`);
     }
+  }
+
+  async findAllFeatures() {
+    return this.prisma.feature.findMany({
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
   }
 }

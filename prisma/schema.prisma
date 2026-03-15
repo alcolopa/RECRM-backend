@@ -15,6 +15,11 @@ enum UserRole {
   SUPPORT
 }
 
+enum UnitPreference {
+  METRIC
+  IMPERIAL
+}
+
 enum ContactStatus {
   NEW
   CONTACTED
@@ -103,10 +108,13 @@ enum PropertyType {
   APARTMENT
   HOUSE
   VILLA
+  CONDO
+  TOWNHOUSE
   LAND
   COMMERCIAL
   OFFICE
   RETAIL
+  INDUSTRIAL
 }
 
 enum TaskStatus {
@@ -155,6 +163,7 @@ model User {
   lastName        String?
   avatar          String?      // URL to profile picture
   role            UserRole     @default(AGENT)
+  unitPreference  UnitPreference @default(METRIC)
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt       DateTime     @default(now())
@@ -293,6 +302,8 @@ model Property {
   city            String?
   state           String?
   zipCode         String?
+  country         String?
+  governorate     String?
   price           Decimal?
   status          PropertyStatus @default(AVAILABLE)
   type            PropertyType   @default(HOUSE)
@@ -301,8 +312,9 @@ model Property {
   area            Float?         // Square footage or meters
   lotSize         Float?
   yearBuilt       Int?
-  features        String[]       // e.g. ["Pool", "Garage", "Garden"]
+  features        String[]       // Legacy field, kept for backward compat
   propertyImages  PropertyImage[]
+  propertyFeatures PropertyFeature[]
   organizationId  String
   organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt       DateTime       @default(now())
@@ -450,4 +462,25 @@ model EntityTag {
   @@index([leadId])
   @@index([propertyId])
   @@index([dealId])
+}
+
+model Feature {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  category        String?          // e.g. "Amenities", "Utilities", "Security"
+  createdAt       DateTime         @default(now())
+
+  propertyFeatures PropertyFeature[]
+}
+
+model PropertyFeature {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  featureId   String
+  feature     Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, featureId])
+  @@index([propertyId])
+  @@index([featureId])
 }

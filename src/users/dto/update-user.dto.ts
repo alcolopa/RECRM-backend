@@ -24,5 +24,9 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  unitPreference?: 'METRIC' | 'IMPERIAL';
+
+  @IsString()
+  @IsOptional()
   oldPassword?: string;
 }

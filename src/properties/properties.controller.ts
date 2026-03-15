@@ -31,6 +31,11 @@ export class PropertiesController {
     return this.propertiesService.create(createPropertyDto);
   }
 
+  @Get('features')
+  getFeatures() {
+    return this.propertiesService.findAllFeatures();
+  }
+
   @Get()
   findAll(@Query('organizationId') organizationId?: string) {
     return this.propertiesService.findAll(organizationId);

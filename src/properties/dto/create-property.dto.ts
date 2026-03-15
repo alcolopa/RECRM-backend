@@ -32,6 +32,14 @@ export class CreatePropertyDto {
   @IsOptional()
   zipCode?: string;
 
+  @IsString()
+  @IsOptional()
+  country?: string;
+
+  @IsString()
+  @IsOptional()
+  governorate?: string;
+
   @IsNumber()
   @IsOptional()
   @Min(0)
@@ -73,6 +81,11 @@ export class CreatePropertyDto {
   @IsString({ each: true })
   @IsOptional()
   features?: string[];
+
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  featureIds?: string[];
 
   @IsUUID()
   organizationId!: string;
