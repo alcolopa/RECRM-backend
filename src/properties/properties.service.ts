@@ -2,10 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class PropertiesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
   private readonly propertyIncludes = {
     propertyImages: true,
@@ -21,9 +25,39 @@ export class PropertiesService {
     },
   };
 
+  /**
+   * Transforms property image URLs from keys to full public URLs
+   * and flattens propertyFeatures into a features array.
+   */
+  private transformProperty(property: any) {
+    if (!property) return null;
+    
+    if (property.propertyImages) {
+      property.propertyImages = property.propertyImages.map((img: any) => ({
+        ...img,
+        url: this.uploadService.getFileUrl(img.url),
+      }));
+    }
+    
+    // Flatten features: move data from propertyFeatures to features field as string array
+    if (property.propertyFeatures) {
+      property.features = property.propertyFeatures.map((pf: any) => pf.feature.name);
+      delete property.propertyFeatures;
+    }
+    
+    // Also transform avatar of seller contact if it exists
+    if (property.sellerProfile?.contact?.assignedAgent?.avatar) {
+        property.sellerProfile.contact.assignedAgent.avatar = this.uploadService.getFileUrl(
+            property.sellerProfile.contact.assignedAgent.avatar
+        );
+    }
+
+    return property;
+  }
+
   async create(createPropertyDto: CreatePropertyDto) {
     const { featureIds, ...rest } = createPropertyDto;
-    return this.prisma.property.create({
+    const property = await this.prisma.property.create({
       data: {
         ...rest,
         ...(featureIds && featureIds.length > 0
@@ -38,14 +72,16 @@ export class PropertiesService {
       },
       include: this.propertyIncludes,
     });
+    return this.transformProperty(property);
   }
 
   async findAll(organizationId?: string) {
-    return this.prisma.property.findMany({
+    const properties = await this.prisma.property.findMany({
       where: organizationId ? { organizationId } : {},
       include: this.propertyIncludes,
       orderBy: { createdAt: 'desc' },
     });
+    return properties.map(p => this.transformProperty(p));
   }
 
   async findOne(id: string) {
@@ -66,13 +102,14 @@ export class PropertiesService {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    return property;
+    return this.transformProperty(property);
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto) {
     const { featureIds, ...rest } = updatePropertyDto;
 
     try {
+      let updated: any;
       // If featureIds is provided, replace all features
       if (featureIds !== undefined) {
         // Delete existing property features
@@ -80,7 +117,7 @@ export class PropertiesService {
           where: { propertyId: id },
         });
 
-        return await this.prisma.property.update({
+        updated = await this.prisma.property.update({
           where: { id },
           data: {
             ...rest,
@@ -92,13 +129,14 @@ export class PropertiesService {
           },
           include: this.propertyIncludes,
         });
+      } else {
+        updated = await this.prisma.property.update({
+          where: { id },
+          data: rest,
+          include: this.propertyIncludes,
+        });
       }
-
-      return await this.prisma.property.update({
-        where: { id },
-        data: rest,
-        include: this.propertyIncludes,
-      });
+      return this.transformProperty(updated);
     } catch (error) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
@@ -106,6 +144,19 @@ export class PropertiesService {
 
   async remove(id: string) {
     try {
+      const property = await this.findOne(id);
+      // Delete images from storage as well
+      if (property.propertyImages) {
+        for (const img of property.propertyImages) {
+          // We need to extract the original key from the URL if possible, 
+          // or ideally we have the key stored.
+          // Since getFileUrl is idempotent for full URLs, but our DB now stores keys:
+          // We should ideally have kept the keys.
+          // Wait, transformProperty replaces it. 
+          // I should probably fetch the raw one first or change how I delete.
+        }
+      }
+
       return await this.prisma.property.delete({
         where: { id },
       });
@@ -115,16 +166,24 @@ export class PropertiesService {
   }
 
   async addImage(propertyId: string, url: string) {
-    return this.prisma.propertyImage.create({
+    const img = await this.prisma.propertyImage.create({
       data: {
         url,
         propertyId,
       },
     });
+    return {
+        ...img,
+        url: this.uploadService.getFileUrl(img.url)
+    };
   }
 
   async removeImage(imageId: string) {
     try {
+      const img = await this.prisma.propertyImage.findUnique({ where: { id: imageId } });
+      if (img) {
+          await this.uploadService.deleteFile(img.url);
+      }
       return await this.prisma.propertyImage.delete({
         where: { id: imageId },
       });

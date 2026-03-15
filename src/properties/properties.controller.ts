@@ -18,13 +18,15 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { UploadService } from '../upload/upload.service';
 
 @Controller('properties')
 @UseGuards(JwtAuthGuard)
 export class PropertiesController {
-  constructor(private readonly propertiesService: PropertiesService) {}
+  constructor(
+    private readonly propertiesService: PropertiesService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   @Post()
   create(@Body() createPropertyDto: CreatePropertyDto) {
@@ -58,15 +60,8 @@ export class PropertiesController {
 
   @Post(':id/images')
   @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads',
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `property-${uniqueSuffix}${extname(file.originalname)}`);
-      },
-    }),
     fileFilter: (req, file, cb) => {
-      if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+      if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
         return cb(new BadRequestException('Only image files are allowed!'), false);
       }
       cb(null, true);
@@ -78,14 +73,17 @@ export class PropertiesController {
   async uploadImage(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
-    @Request() req: any
+    @Request() req: any,
   ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
-    return this.propertiesService.addImage(id, imageUrl);
+    // Upload using UploadService with structured path
+    const key = await this.uploadService.uploadFile(file, `${req.user.userId}/properties/${id}`);
+    
+    // addImage returns the transformed object
+    return this.propertiesService.addImage(id, key);
   }
 
   @Delete('images/:imageId')

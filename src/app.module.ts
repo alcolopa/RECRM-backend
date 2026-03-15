@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PropertiesModule } from './properties/properties.module';
 import { ContactsModule } from './contacts/contacts.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ContactsModule } from './contacts/contacts.module';
     PrismaModule,
     PropertiesModule,
     ContactsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

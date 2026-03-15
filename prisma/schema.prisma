@@ -192,7 +192,7 @@ model Contact {
   type            ContactType
   leadSource      String?
   assignedAgentId String?
-  assignedAgent   User?        @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  assignedAgent   User?        @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
   status          ContactStatus @default(NEW)
   notes           String?      @db.Text
   tags            String[]     @default([])
@@ -283,7 +283,7 @@ model Lead {
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedUserId  String?
-  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -321,12 +321,13 @@ model Property {
   updatedAt       DateTime       @updatedAt
 
   sellerProfileId String?
-  sellerProfile   SellerProfile? @relation("SellerProperty", fields: [sellerProfileId], references: [id])
+  sellerProfile   SellerProfile? @relation("SellerProperty", fields: [sellerProfileId], references: [id], onDelete: SetNull)
   deals           Deal[]
   tags            EntityTag[]
 
   @@index([organizationId])
 }
+
 
 model PropertyImage {
   id         String   @id @default(uuid())
@@ -351,7 +352,7 @@ model Deal {
   propertyId      String?
   property        Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   assignedUserId  String?
-  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -370,8 +371,8 @@ model Activity {
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contactId       String?
   contact         Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  createdById     String
-  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById     String?
+  createdBy       User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -387,7 +388,7 @@ model Task {
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedUserId  String?
-  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -402,8 +403,8 @@ model Note {
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contactId       String?
   contact         Contact?     @relation("ContactNotes", fields: [contactId], references: [id], onDelete: Cascade)
-  createdById     String
-  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById     String?
+  createdBy       User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

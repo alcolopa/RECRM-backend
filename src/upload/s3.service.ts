@@ -1,0 +1,61 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+
+@Injectable()
+export class S3Service {
+  private readonly s3Client: S3Client;
+  private readonly bucket: string;
+  private readonly logger = new Logger(S3Service.name);
+
+  constructor(private configService: ConfigService) {
+    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+    const region = this.configService.get<string>('AWS_REGION');
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET');
+
+    this.s3Client = new S3Client({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+  }
+
+  async uploadFile(file: Express.Multer.File, key: string): Promise<string> {
+    try {
+      const upload = new Upload({
+        client: this.s3Client,
+        params: {
+          Bucket: this.bucket,
+          Key: key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          ACL: 'public-read', // Assuming public read is okay for this CRM
+        },
+      });
+
+      await upload.done();
+      return key; // Just return the key
+    } catch (error) {
+      this.logger.error(`Error uploading to S3: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async deleteFile(key: string): Promise<void> {
+    try {
+      await this.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+    } catch (error) {
+      this.logger.error(`Error deleting from S3: ${error.message}`);
+      throw error;
+    }
+  }
+}

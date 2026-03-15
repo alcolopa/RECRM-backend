@@ -3,13 +3,15 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { UploadService } from '../upload/upload.service';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   @Get('me')
   async getMe(@Request() req: any) {
@@ -18,13 +20,24 @@ export class UsersController {
       throw new ForbiddenException();
     }
     const { password, ...result } = user;
+    
+    // Transform avatar key to URL
+    if (result.avatar) {
+      result.avatar = this.uploadService.getFileUrl(result.avatar);
+    }
+    
     return result;
   }
 
   @Patch('me')
   async updateMe(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
     try {
-      return await this.usersService.update(req.user.userId, updateUserDto);
+      const user = await this.usersService.update(req.user.userId, updateUserDto);
+      // Transform avatar key to URL
+      if (user.avatar) {
+        user.avatar = this.uploadService.getFileUrl(user.avatar);
+      }
+      return user;
     } catch (error: any) {
       if (error.message === 'Email already in use') {
         throw new ConflictException('Email is already taken by another user');
@@ -41,15 +54,8 @@ export class UsersController {
 
   @Post('me/avatar')
   @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads',
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `avatar-${uniqueSuffix}${extname(file.originalname)}`);
-      },
-    }),
     fileFilter: (req, file, cb) => {
-      if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+      if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
         return cb(new BadRequestException('Only image files are allowed!'), false);
       }
       cb(null, true);
@@ -63,9 +69,14 @@ export class UsersController {
       throw new BadRequestException('File is required');
     }
 
-    const avatarUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
-    await this.usersService.update(req.user.userId, { avatar: avatarUrl });
+    // Upload using UploadService with custom path
+    const key = await this.uploadService.uploadFile(file, `${req.user.userId}/avatars`);
     
+    // Update user with the key (not the full URL)
+    await this.usersService.update(req.user.userId, { avatar: key });
+    
+    // Return the full URL for the frontend
+    const avatarUrl = this.uploadService.getFileUrl(key);
     return { avatar: avatarUrl };
   }
 }
