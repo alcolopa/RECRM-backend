@@ -105,6 +105,37 @@ export class PropertiesService {
     return this.transformProperty(property);
   }
 
+  async findPublic(id: string) {
+    const property = await this.prisma.property.findUnique({
+      where: { id },
+      include: {
+        propertyImages: true,
+        propertyFeatures: {
+          include: {
+            feature: true,
+          },
+        },
+      },
+    });
+
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+
+    // Transform first
+    const transformed = this.transformProperty(property);
+
+    // Filter sensitive fields
+    const { 
+      address, // Hide exact address
+      sellerProfileId,
+      organizationId,
+      ...publicData 
+    } = transformed;
+
+    return publicData;
+  }
+
   async update(id: string, updatePropertyDto: UpdatePropertyDto) {
     const { featureIds, ...rest } = updatePropertyDto;
 

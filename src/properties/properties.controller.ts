@@ -21,44 +21,55 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from '../upload/upload.service';
 
 @Controller('properties')
-@UseGuards(JwtAuthGuard)
 export class PropertiesController {
   constructor(
     private readonly propertiesService: PropertiesService,
     private readonly uploadService: UploadService,
   ) {}
 
+  @Get('public/:id')
+  findPublic(@Param('id') id: string) {
+    return this.propertiesService.findPublic(id);
+  }
+
   @Post()
+  @UseGuards(JwtAuthGuard)
   create(@Body() createPropertyDto: CreatePropertyDto) {
     return this.propertiesService.create(createPropertyDto);
   }
 
   @Get('features')
+  @UseGuards(JwtAuthGuard)
   getFeatures() {
     return this.propertiesService.findAllFeatures();
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   findAll(@Query('organizationId') organizationId?: string) {
     return this.propertiesService.findAll(organizationId);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.propertiesService.findOne(id);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   update(@Param('id') id: string, @Body() updatePropertyDto: UpdatePropertyDto) {
     return this.propertiesService.update(id, updatePropertyDto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string) {
     return this.propertiesService.remove(id);
   }
 
   @Post(':id/images')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file', {
     fileFilter: (req, file, cb) => {
       if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
@@ -87,6 +98,7 @@ export class PropertiesController {
   }
 
   @Delete('images/:imageId')
+  @UseGuards(JwtAuthGuard)
   removeImage(@Param('imageId') imageId: string) {
     return this.propertiesService.removeImage(imageId);
   }
