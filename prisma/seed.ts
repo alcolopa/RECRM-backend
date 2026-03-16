@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, LeadStatus, PropertyStatus, ActivityType, ContactType } from '@prisma/client';
+import { PrismaClient, UserRole, LeadStatus, PropertyStatus, ActivityType, ContactType, FinancingType, BuyingTimeline, DealStage } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import 'dotenv/config';
@@ -10,103 +10,179 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('Start seeding...');
 
-  // 1. Create Organization
-  const org = await prisma.organization.upsert({
-    where: { slug: 'acme-real-estate' },
-    update: {},
-    create: {
-      name: 'Acme Real Estate',
-      slug: 'acme-real-estate',
-    },
-  });
-
-  // 2. Create Users
+  // 1. Create Admin User first (needed for Org owner)
+  const adminEmail = 'admin@acme.com';
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@acme.com' },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: 'admin@acme.com',
+      email: adminEmail,
       password: '$2b$10$dummyhashedpassword1234567890',
       firstName: 'Admin',
       lastName: 'User',
-      role: UserRole.ADMIN,
-      organizationId: org.id,
     },
   });
 
+  // 2. Create Organization with Admin as owner
+  const org = await prisma.organization.upsert({
+    where: { slug: 'acme-real-estate' },
+    update: { ownerId: admin.id },
+    create: {
+      name: 'Acme Real Estate',
+      slug: 'acme-real-estate',
+      ownerId: admin.id,
+    },
+  });
+
+  // 3. Create Memberships
+  await prisma.membership.upsert({
+    where: {
+      userId_organizationId: {
+        userId: admin.id,
+        organizationId: org.id,
+      },
+    },
+    update: { role: UserRole.OWNER },
+    create: {
+      userId: admin.id,
+      organizationId: org.id,
+      role: UserRole.OWNER,
+    },
+  });
+
+  const agentEmail = 'agent@acme.com';
   const agent = await prisma.user.upsert({
-    where: { email: 'agent@acme.com' },
+    where: { email: agentEmail },
     update: {},
     create: {
-      email: 'agent@acme.com',
+      email: agentEmail,
       password: '$2b$10$dummyhashedpassword1234567890',
       firstName: 'Agent',
       lastName: 'Smith',
+    },
+  });
+
+  await prisma.membership.upsert({
+    where: {
+      userId_organizationId: {
+        userId: agent.id,
+        organizationId: org.id,
+      },
+    },
+    update: { role: UserRole.AGENT },
+    create: {
+      userId: agent.id,
+      organizationId: org.id,
       role: UserRole.AGENT,
-      organizationId: org.id,
     },
   });
 
-  // 3. Create Contacts
-  const contact1 = await prisma.contact.create({
-    data: {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@example.com',
-      phone: '123-456-7890',
-      type: ContactType.BUYER,
-      organizationId: org.id,
-    },
+  // 4. Create Contacts (Check if exists first to avoid duplicates)
+  let contact1 = await prisma.contact.findFirst({
+    where: { email: 'john.doe@example.com', organizationId: org.id }
   });
 
-  // 4. Create Leads
-  await prisma.lead.create({
-    data: {
-      firstName: 'Jane',
-      lastName: 'Smith',
-      email: 'jane.smith@example.com',
-      status: LeadStatus.NEW,
-      organizationId: org.id,
-      assignedUserId: agent.id,
-    },
+  if (!contact1) {
+    contact1 = await prisma.contact.create({
+      data: {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john.doe@example.com',
+        phone: '123-456-7890',
+        type: ContactType.BUYER,
+        organizationId: org.id,
+        assignedAgentId: agent.id,
+        buyerProfile: {
+          create: {
+            minBudget: 1000000,
+            maxBudget: 6000000,
+            financingType: FinancingType.MORTGAGE,
+            buyingTimeline: BuyingTimeline.ONE_TO_THREE_MONTHS,
+          }
+        }
+      },
+    });
+  }
+
+  // 5. Create Leads
+  const leadEmail = 'jane.smith@example.com';
+  const existingLead = await prisma.lead.findFirst({
+    where: { email: leadEmail, organizationId: org.id }
   });
 
-  // 5. Create Properties
-  const property = await prisma.property.create({
-    data: {
-      title: 'Luxury Villa in Beverly Hills',
-      address: '123 Sunset Blvd, Beverly Hills, CA',
-      price: 5000000,
-      status: PropertyStatus.AVAILABLE,
-      organizationId: org.id,
-    },
+  if (!existingLead) {
+    await prisma.lead.create({
+      data: {
+        firstName: 'Jane',
+        lastName: 'Smith',
+        email: leadEmail,
+        status: LeadStatus.NEW,
+        organizationId: org.id,
+        assignedUserId: agent.id,
+      },
+    });
+  }
+
+  // 6. Create Properties
+  const propertyTitle = 'Luxury Villa in Beverly Hills';
+  let property = await prisma.property.findFirst({
+    where: { title: propertyTitle, organizationId: org.id }
   });
 
-  // 6. Create Deal
-  await prisma.deal.create({
-    data: {
-      title: 'Sunset Villa Purchase',
-      value: 4800000,
-      organizationId: org.id,
-      contactId: contact1.id,
-      propertyId: property.id,
-      assignedUserId: agent.id,
-    },
+  if (!property) {
+    property = await prisma.property.create({
+      data: {
+        title: propertyTitle,
+        address: '123 Sunset Blvd, Beverly Hills, CA',
+        price: 5000000,
+        status: PropertyStatus.AVAILABLE,
+        organizationId: org.id,
+        assignedUserId: agent.id,
+      },
+    });
+  }
+
+  // 7. Create Deal
+  const dealTitle = 'Sunset Villa Purchase';
+  const existingDeal = await prisma.deal.findFirst({
+    where: { title: dealTitle, organizationId: org.id }
   });
 
-  // 7. Create Activity
-  await prisma.activity.create({
-    data: {
-      type: ActivityType.CALL,
-      subject: 'Initial discovery call',
-      content: 'Client is interested in luxury properties.',
-      organizationId: org.id,
-      contactId: contact1.id,
-      createdById: agent.id,
-    },
-  });
+  if (!existingDeal && property && contact1) {
+    await prisma.deal.create({
+      data: {
+        title: dealTitle,
+        value: 4800000,
+        stage: DealStage.NEGOTIATION,
+        organizationId: org.id,
+        contactId: contact1.id,
+        propertyId: property.id,
+        assignedUserId: agent.id,
+      },
+    });
+  }
 
-  // 8. Seed Features
+  // 8. Create Activity (Only if no activities exist for this contact yet to keep it simple)
+  if (contact1) {
+    const activityCount = await prisma.activity.count({
+      where: { contactId: contact1.id }
+    });
+
+    if (activityCount === 0) {
+      await prisma.activity.create({
+        data: {
+          type: ActivityType.CALL,
+          subject: 'Initial discovery call',
+          content: 'Client is interested in luxury properties.',
+          organizationId: org.id,
+          contactId: contact1.id,
+          createdById: agent.id,
+        },
+      });
+    }
+  }
+
+  // 9. Seed Features
   const features = [
     // Amenities
     { name: 'Swimming Pool', category: 'Amenities' },

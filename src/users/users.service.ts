@@ -11,7 +11,12 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { email },
       include: {
-        organization: true
+        memberships: {
+          include: {
+            organization: true
+          }
+        },
+        ownedOrganizations: true
       }
     });
   }
@@ -20,66 +25,80 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        organization: true
+        memberships: {
+          include: {
+            organization: true
+          }
+        },
+        ownedOrganizations: true
       }
     });
   }
 
   async findAll(organizationId?: string): Promise<User[]> {
     return this.prisma.user.findMany({
-      where: organizationId ? { organizationId } : {},
+      where: organizationId ? {
+        memberships: {
+          some: {
+            organizationId
+          }
+        }
+      } : {},
       orderBy: { firstName: 'asc' }
     });
   }
 
-  async create(data: Prisma.UserCreateInput): Promise<User> {
-    // If organization is being created with the user, we need to handle it carefully
-    // to satisfy the required organizationId on User and ownerId on Organization.
+  async create(data: any): Promise<User> {
+    // data can be UserCreateInput or customized for registration
     if (data.organization?.create) {
-      const { organization, ...userData } = data;
-      const orgCreateData = organization.create as Prisma.OrganizationCreateInput;
+      const { organization, role, ...userData } = data;
+      const orgCreateData = organization.create;
       
       return await this.prisma.$transaction(async (tx) => {
-        // 1. Create organization first (ownerId is optional in schema)
+        // 1. Create user first
+        const user = await tx.user.create({
+          data: userData,
+        });
+
+        // 2. Create organization with user as owner
         const org = await tx.organization.create({
           data: {
             name: orgCreateData.name,
             slug: orgCreateData.slug,
-            address: orgCreateData.address,
-            phone: orgCreateData.phone,
-            email: orgCreateData.email,
-            website: orgCreateData.website,
-            logo: orgCreateData.logo,
-          },
-        });
-
-        // 2. Create user linked to this organization
-        const user = await tx.user.create({
-          data: {
-            ...(userData as Prisma.UserUncheckedCreateInput),
-            organizationId: org.id,
-          },
-          include: {
-            organization: true,
-          },
-        });
-
-        // 3. Set the user as owner of the organization
-        await tx.organization.update({
-          where: { id: org.id },
-          data: {
             ownerId: user.id,
           },
         });
 
-        return user;
+        // 3. Create membership for the user in the organization
+        await tx.membership.create({
+          data: {
+            userId: user.id,
+            organizationId: org.id,
+            role: role || 'OWNER',
+          },
+        });
+
+        return tx.user.findUnique({
+          where: { id: user.id },
+          include: {
+            memberships: {
+              include: {
+                organization: true
+              }
+            }
+          }
+        }) as any;
       });
     }
 
     return this.prisma.user.create({
       data,
       include: {
-        organization: true,
+        memberships: {
+          include: {
+            organization: true
+          }
+        }
       },
     });
   }

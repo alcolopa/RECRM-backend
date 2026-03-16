@@ -1,4 +1,4 @@
-import { Controller, Patch, Body, UseGuards, Request, Get, ForbiddenException, ConflictException, Post, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Patch, Body, UseGuards, Request, Get, ForbiddenException, ConflictException, Post, UseInterceptors, UploadedFile, BadRequestException, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -14,8 +14,15 @@ export class UsersController {
   ) {}
 
   @Get()
-  async findAll(@Request() req: any) {
-    const users = await this.usersService.findAll(req.user.organizationId);
+  async findAll(@Request() req: any, @Query('organizationId') organizationId: string) {
+    if (!organizationId) {
+      throw new BadRequestException('Organization ID is required');
+    }
+
+    // Verify user belongs to the requested organization
+    await this.verifyMembership(req.user.userId, organizationId);
+
+    const users = await this.usersService.findAll(organizationId);
     return users.map(user => {
       const { password, ...result } = user;
       if (result.avatar) {
@@ -23,6 +30,14 @@ export class UsersController {
       }
       return result;
     });
+  }
+
+  private async verifyMembership(userId: string, organizationId: string) {
+    const user = await this.usersService.findById(userId);
+    const isMember = user?.memberships.some((m: any) => m.organizationId === organizationId);
+    if (!isMember) {
+      throw new ForbiddenException('You are not a member of this organization');
+    }
   }
 
   @Get('me')

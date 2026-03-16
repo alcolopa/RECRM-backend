@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
@@ -10,6 +10,15 @@ export class PropertiesService {
     private prisma: PrismaService,
     private uploadService: UploadService,
   ) {}
+
+  private async verifyAgentMembership(userId: string, organizationId: string) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+    });
+    if (!membership) {
+      throw new BadRequestException('Assigned agent must be a member of the organization');
+    }
+  }
 
   private readonly propertyIncludes = {
     propertyImages: true,
@@ -69,6 +78,11 @@ export class PropertiesService {
 
   async create(createPropertyDto: CreatePropertyDto) {
     const { featureIds, ...rest } = createPropertyDto;
+
+    if (rest.assignedUserId) {
+        await this.verifyAgentMembership(rest.assignedUserId, rest.organizationId);
+    }
+
     const property = await this.prisma.property.create({
       data: {
         ...rest,
@@ -96,9 +110,12 @@ export class PropertiesService {
     return properties.map(p => this.transformProperty(p));
   }
 
-  async findOne(id: string) {
-    const property = await this.prisma.property.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId?: string) {
+    const property = await this.prisma.property.findFirst({
+      where: { 
+        id,
+        ...(organizationId ? { organizationId } : {}),
+      },
       include: {
         ...this.propertyIncludes,
         deals: true,
@@ -160,12 +177,16 @@ export class PropertiesService {
       agent.avatar = this.uploadService.getFileUrl(agent.avatar);
     }
 
+    // Transform organization logo
+    if (transformed.organization?.logo) {
+      transformed.organization.logo = this.uploadService.getFileUrl(transformed.organization.logo);
+    }
+
     // Filter sensitive fields
     const { 
       address, // Hide exact address
       sellerProfileId,
       organizationId,
-      organization,
       ...publicData 
     } = transformed;
 
@@ -175,8 +196,19 @@ export class PropertiesService {
     };
   }
 
-  async update(id: string, updatePropertyDto: UpdatePropertyDto) {
+  async update(id: string, updatePropertyDto: UpdatePropertyDto, organizationId: string) {
     const { featureIds, ...rest } = updatePropertyDto;
+
+    // Verify property belongs to organization
+    await this.findOne(id, organizationId);
+
+    if (rest.assignedUserId) {
+        await this.verifyAgentMembership(rest.assignedUserId, organizationId);
+    }
+
+    if (rest.organizationId && rest.organizationId !== organizationId) {
+        throw new ForbiddenException('Cannot move properties between organizations');
+    }
 
     try {
       let updated: any;
@@ -212,9 +244,9 @@ export class PropertiesService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, organizationId: string) {
     try {
-      const property = await this.findOne(id);
+      const property = await this.findOne(id, organizationId);
       // Delete images from storage as well
       if (property.propertyImages) {
         for (const img of property.propertyImages) {

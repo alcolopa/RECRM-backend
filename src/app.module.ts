@@ -9,6 +9,7 @@ import { PropertiesModule } from './properties/properties.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { UploadModule } from './upload/upload.module';
 import { OrganizationModule } from './organization/organization.module';
+import { OffersModule } from './offers/offers.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { OrganizationModule } from './organization/organization.module';
     ContactsModule,
     UploadModule,
     OrganizationModule,
+    OffersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Contact, Prisma, ContactType } from '@prisma/client';
 import { CreateContactDto } from './dto/create-contact.dto';
@@ -8,8 +8,21 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 export class ContactsService {
   constructor(private prisma: PrismaService) {}
 
+  private async verifyAgentMembership(userId: string, organizationId: string) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+    });
+    if (!membership) {
+      throw new BadRequestException('Assigned agent must be a member of the organization');
+    }
+  }
+
   async create(createContactDto: CreateContactDto): Promise<Contact> {
     const { buyerProfile, sellerProfile, ...contactData } = createContactDto;
+
+    if (createContactDto.assignedAgentId) {
+      await this.verifyAgentMembership(createContactDto.assignedAgentId, createContactDto.organizationId);
+    }
 
     const data: Prisma.ContactCreateInput = {
       ...contactData,
@@ -69,9 +82,12 @@ export class ContactsService {
     });
   }
 
-  async findOne(id: string): Promise<Contact> {
-    const contact = await this.prisma.contact.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId?: string): Promise<Contact> {
+    const contact = await this.prisma.contact.findFirst({
+      where: { 
+        id,
+        ...(organizationId ? { organizationId } : {}),
+      },
       include: {
         buyerProfile: true,
         sellerProfile: true,
@@ -91,16 +107,22 @@ export class ContactsService {
     return contact;
   }
 
-  async update(id: string, updateContactDto: UpdateContactDto): Promise<Contact> {
+  async update(id: string, updateContactDto: UpdateContactDto, organizationId: string): Promise<Contact> {
     const { buyerProfile, sellerProfile, ...contactData } = updateContactDto;
+
+    // Verify contact belongs to organization
+    const existing = await this.findOne(id, organizationId);
+
+    if (updateContactDto.assignedAgentId) {
+      await this.verifyAgentMembership(updateContactDto.assignedAgentId, organizationId);
+    }
 
     const data: Prisma.ContactUpdateInput = {
       ...contactData,
     };
 
-    if (updateContactDto.organizationId) {
-      data.organization = { connect: { id: updateContactDto.organizationId } };
-      delete (data as any).organizationId;
+    if (updateContactDto.organizationId && updateContactDto.organizationId !== organizationId) {
+        throw new ForbiddenException('Cannot move contacts between organizations');
     }
 
     if (updateContactDto.assignedAgentId) {
@@ -149,7 +171,10 @@ export class ContactsService {
     }
   }
 
-  async remove(id: string): Promise<Contact> {
+  async remove(id: string, organizationId: string): Promise<Contact> {
+    // Verify contact belongs to organization
+    await this.findOne(id, organizationId);
+
     try {
       return await this.prisma.contact.delete({
         where: { id },

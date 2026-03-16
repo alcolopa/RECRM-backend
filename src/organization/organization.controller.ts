@@ -26,9 +26,36 @@ export class OrganizationController {
     private readonly uploadService: UploadService,
   ) {}
 
+  @Get('mine')
+  async getMyOrganizations(@Request() req: any) {
+    const user = await this.organizationService['prisma'].user.findUnique({
+      where: { id: req.user.userId },
+      include: {
+        memberships: {
+          include: {
+            organization: true
+          }
+        }
+      }
+    });
+    return user?.memberships.map(m => ({
+      ...m.organization,
+      role: m.role,
+      logo: m.organization.logo ? this.uploadService.getFileUrl(m.organization.logo) : null
+    })) || [];
+  }
+
   @Get()
   async getOrganization(@Request() req: any) {
-    const org = await this.organizationService.findById(req.user.organizationId || (await this.getOrgIdFromUser(req.user.userId)));
+    const orgId = req.query.organizationId || (await this.getDefaultOrgId(req.user.userId));
+    
+    if (!orgId) {
+      throw new BadRequestException('No organization found for this user');
+    }
+
+    await this.verifyMembership(req.user.userId, orgId);
+
+    const org = await this.organizationService.findById(orgId);
     
     // Transform logo key to URL
     if (org.logo) {
@@ -45,24 +72,33 @@ export class OrganizationController {
 
   @Patch()
   async update(@Request() req: any, @Body() updateOrganizationDto: UpdateOrganizationDto) {
-    if (req.user.role !== UserRole.OWNER) {
+    const orgId = req.query.organizationId || (await this.getDefaultOrgId(req.user.userId));
+    
+    if (!orgId) {
+      throw new BadRequestException('No organization found for this user');
+    }
+
+    await this.verifyMembership(req.user.userId, orgId);
+
+    // Check if user is the owner of THIS specific organization
+    const org = await this.organizationService.findById(orgId);
+    if (org.ownerId !== req.user.userId) {
       throw new ForbiddenException('Only the organization owner can update settings');
     }
 
-    const orgId = req.user.organizationId || (await this.getOrgIdFromUser(req.user.userId));
-    const org = await this.organizationService.update(orgId, updateOrganizationDto);
+    const updatedOrg = await this.organizationService.update(orgId, updateOrganizationDto);
     
     // Transform logo key to URL
-    if (org.logo) {
-      org.logo = this.uploadService.getFileUrl(org.logo);
+    if (updatedOrg.logo) {
+      updatedOrg.logo = this.uploadService.getFileUrl(updatedOrg.logo);
     }
 
     // Transform owner avatar
-    if (org.owner?.avatar) {
-      org.owner.avatar = this.uploadService.getFileUrl(org.owner.avatar);
+    if (updatedOrg.owner?.avatar) {
+      updatedOrg.owner.avatar = this.uploadService.getFileUrl(updatedOrg.owner.avatar);
     }
     
-    return org;
+    return updatedOrg;
   }
 
   @Post('logo')
@@ -78,7 +114,16 @@ export class OrganizationController {
     },
   }))
   async uploadLogo(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
-    if (req.user.role !== UserRole.OWNER) {
+    const orgId = req.query.organizationId || (await this.getDefaultOrgId(req.user.userId));
+    
+    if (!orgId) {
+      throw new BadRequestException('No organization found for this user');
+    }
+
+    await this.verifyMembership(req.user.userId, orgId);
+
+    const org = await this.organizationService.findById(orgId);
+    if (org.ownerId !== req.user.userId) {
       throw new ForbiddenException('Only the organization owner can update settings');
     }
 
@@ -86,8 +131,6 @@ export class OrganizationController {
       throw new BadRequestException('File is required');
     }
 
-    const orgId = req.user.organizationId || (await this.getOrgIdFromUser(req.user.userId));
-    
     // Upload using UploadService
     const key = await this.uploadService.uploadFile(file, `organizations/${orgId}/logos`);
     
@@ -99,14 +142,20 @@ export class OrganizationController {
     return { logo: logoUrl };
   }
 
-  // Helper to ensure we have the organization ID if it's not in the JWT payload for some reason
-  private async getOrgIdFromUser(userId: string): Promise<string> {
-    // This is a fallback, ideally it should be in the JWT
-    // For now we'll just assume it might be missing and fetch it
-    const user = await this.organizationService['prisma'].user.findUnique({
-      where: { id: userId },
+  private async verifyMembership(userId: string, organizationId: string) {
+    const membership = await this.organizationService['prisma'].membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId } }
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this organization');
+    }
+  }
+
+  private async getDefaultOrgId(userId: string): Promise<string | null> {
+    const membership = await this.organizationService['prisma'].membership.findFirst({
+      where: { userId },
       select: { organizationId: true }
     });
-    return user?.organizationId || '';
+    return membership?.organizationId || null;
   }
 }
