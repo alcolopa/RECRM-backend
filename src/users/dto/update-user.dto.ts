@@ -24,6 +24,10 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
   unitPreference?: 'METRIC' | 'IMPERIAL';
 
   @IsString()

@@ -138,10 +138,18 @@ model Organization {
   id          String   @id @default(uuid())
   name        String
   slug        String   @unique
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  logo        String?      // URL or key to logo file
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users       User[]
+  ownerId     String?  @unique
+  owner       User?    @relation("OrganizationOwner", fields: [ownerId], references: [id])
+
+  users       User[]   @relation("OrganizationUsers")
   contacts    Contact[]
   leads       Lead[]
   properties  Property[]
@@ -162,16 +170,21 @@ model User {
   firstName       String?
   lastName        String?
   avatar          String?      // URL to profile picture
+  phone           String?      // Agent phone number
   role            UserRole     @default(AGENT)
   unitPreference  UnitPreference @default(METRIC)
   organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization @relation("OrganizationUsers", fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  ownedOrganization Organization? @relation("OrganizationOwner")
+  
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
   assignedLeads      Lead[]     @relation("AssignedUser")
   assignedDeals      Deal[]     @relation("AssignedUser")
   assignedTasks      Task[]     @relation("AssignedUser")
+  assignedProperties Property[] @relation("PropertyAgent")
   createdActivities  Activity[] @relation("CreatedBy")
   createdNotes       Note[]     @relation("CreatedBy")
   assignedContacts   Contact[]  @relation("AssignedAgent")
@@ -320,16 +333,15 @@ model Property {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
+  assignedUserId  String?
+  assignedUser    User?          @relation("PropertyAgent", fields: [assignedUserId], references: [id], onDelete: SetNull)
   sellerProfileId String?
   sellerProfile   SellerProfile? @relation("SellerProperty", fields: [sellerProfileId], references: [id], onDelete: SetNull)
   deals           Deal[]
   tags            EntityTag[]
 
   @@index([organizationId])
-}
-
-
-model PropertyImage {
+  }model PropertyImage {
   id         String   @id @default(uuid())
   url        String
   propertyId String

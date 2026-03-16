@@ -5,6 +5,7 @@ import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UserRole } from '@prisma/client';
 
 @Controller('auth')
 export class AuthController {
@@ -40,6 +41,7 @@ export class AuthController {
         password: hashedPassword,
         firstName: body.firstName,
         lastName: body.lastName,
+        role: UserRole.OWNER, // Assign OWNER role to person creating organization
         organization: {
           create: {
             name: body.organizationName || `${displayName}'s Organization`,

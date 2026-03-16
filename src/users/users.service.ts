@@ -25,9 +25,62 @@ export class UsersService {
     });
   }
 
+  async findAll(organizationId?: string): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: organizationId ? { organizationId } : {},
+      orderBy: { firstName: 'asc' }
+    });
+  }
+
   async create(data: Prisma.UserCreateInput): Promise<User> {
+    // If organization is being created with the user, we need to handle it carefully
+    // to satisfy the required organizationId on User and ownerId on Organization.
+    if (data.organization?.create) {
+      const { organization, ...userData } = data;
+      const orgCreateData = organization.create as Prisma.OrganizationCreateInput;
+      
+      return await this.prisma.$transaction(async (tx) => {
+        // 1. Create organization first (ownerId is optional in schema)
+        const org = await tx.organization.create({
+          data: {
+            name: orgCreateData.name,
+            slug: orgCreateData.slug,
+            address: orgCreateData.address,
+            phone: orgCreateData.phone,
+            email: orgCreateData.email,
+            website: orgCreateData.website,
+            logo: orgCreateData.logo,
+          },
+        });
+
+        // 2. Create user linked to this organization
+        const user = await tx.user.create({
+          data: {
+            ...(userData as Prisma.UserUncheckedCreateInput),
+            organizationId: org.id,
+          },
+          include: {
+            organization: true,
+          },
+        });
+
+        // 3. Set the user as owner of the organization
+        await tx.organization.update({
+          where: { id: org.id },
+          data: {
+            ownerId: user.id,
+          },
+        });
+
+        return user;
+      });
+    }
+
     return this.prisma.user.create({
       data,
+      include: {
+        organization: true,
+      },
     });
   }
 

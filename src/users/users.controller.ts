@@ -13,6 +13,18 @@ export class UsersController {
     private readonly uploadService: UploadService,
   ) {}
 
+  @Get()
+  async findAll(@Request() req: any) {
+    const users = await this.usersService.findAll(req.user.organizationId);
+    return users.map(user => {
+      const { password, ...result } = user;
+      if (result.avatar) {
+        result.avatar = this.uploadService.getFileUrl(result.avatar);
+      }
+      return result;
+    });
+  }
+
   @Get('me')
   async getMe(@Request() req: any) {
     const user = await this.usersService.findById(req.user.userId);

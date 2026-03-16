@@ -92,5 +92,9 @@ export class CreatePropertyDto {
 
   @IsUUID()
   @IsOptional()
+  assignedUserId?: string;
+
+  @IsUUID()
+  @IsOptional()
   sellerProfileId?: string;
 }

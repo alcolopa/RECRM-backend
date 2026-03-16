@@ -18,9 +18,14 @@ export class PropertiesService {
         feature: true,
       },
     },
+    assignedUser: true,
     sellerProfile: {
       include: {
-        contact: true,
+        contact: {
+          include: {
+            assignedAgent: true,
+          }
+        },
       },
     },
   };
@@ -45,7 +50,14 @@ export class PropertiesService {
       delete property.propertyFeatures;
     }
     
-    // Also transform avatar of seller contact if it exists
+    // Transform avatar of direct assigned agent
+    if (property.assignedUser?.avatar) {
+        property.assignedUser.avatar = this.uploadService.getFileUrl(
+            property.assignedUser.avatar
+        );
+    }
+    
+    // Transform avatar of assigned agent of the contact
     if (property.sellerProfile?.contact?.assignedAgent?.avatar) {
         property.sellerProfile.contact.assignedAgent.avatar = this.uploadService.getFileUrl(
             property.sellerProfile.contact.assignedAgent.avatar
@@ -115,6 +127,21 @@ export class PropertiesService {
             feature: true,
           },
         },
+        assignedUser: true,
+        organization: {
+          include: {
+            owner: true,
+          }
+        },
+        sellerProfile: {
+          include: {
+            contact: {
+              include: {
+                assignedAgent: true,
+              }
+            }
+          }
+        }
       },
     });
 
@@ -125,15 +152,27 @@ export class PropertiesService {
     // Transform first
     const transformed = this.transformProperty(property);
 
+    // Determine the listing agent (Property direct -> assigned to seller -> org owner)
+    const agent = transformed.assignedUser || transformed.sellerProfile?.contact?.assignedAgent || transformed.organization?.owner;
+    
+    // Transform owner avatar if used as fallback
+    if (transformed.organization?.owner?.avatar && !transformed.assignedUser && !transformed.sellerProfile?.contact?.assignedAgent) {
+      agent.avatar = this.uploadService.getFileUrl(agent.avatar);
+    }
+
     // Filter sensitive fields
     const { 
       address, // Hide exact address
       sellerProfileId,
       organizationId,
+      organization,
       ...publicData 
     } = transformed;
 
-    return publicData;
+    return {
+      ...publicData,
+      assignedUser: agent,
+    };
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto) {
