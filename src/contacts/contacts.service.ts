@@ -18,23 +18,19 @@ export class ContactsService {
   }
 
   async create(createContactDto: CreateContactDto): Promise<Contact> {
-    const { buyerProfile, sellerProfile, ...contactData } = createContactDto;
+    const { buyerProfile, sellerProfile, assignedAgentId, organizationId, ...contactData } = createContactDto;
 
-    if (createContactDto.assignedAgentId) {
-      await this.verifyAgentMembership(createContactDto.assignedAgentId, createContactDto.organizationId);
+    if (assignedAgentId) {
+      await this.verifyAgentMembership(assignedAgentId, organizationId);
     }
 
     const data: Prisma.ContactCreateInput = {
       ...contactData,
-      organization: { connect: { id: contactData.organizationId } },
+      organization: { connect: { id: organizationId } },
     };
 
-    // Remove organizationId as we are using connect
-    delete (data as any).organizationId;
-
-    if (createContactDto.assignedAgentId) {
-      data.assignedAgent = { connect: { id: createContactDto.assignedAgentId } };
-      delete (data as any).assignedAgentId;
+    if (assignedAgentId) {
+      data.assignedAgent = { connect: { id: assignedAgentId } };
     }
 
     if (contactData.type === ContactType.BUYER && buyerProfile) {
@@ -99,6 +95,26 @@ export class ContactsService {
             email: true,
           },
         },
+        negotiations: {
+          include: {
+            property: {
+              include: {
+                propertyImages: true,
+              }
+            },
+            offers: {
+              include: {
+                createdBy: true,
+              },
+              orderBy: {
+                createdAt: 'desc',
+              },
+            },
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+        },
       },
     });
     if (!contact) {
@@ -108,26 +124,26 @@ export class ContactsService {
   }
 
   async update(id: string, updateContactDto: UpdateContactDto, organizationId: string): Promise<Contact> {
-    const { buyerProfile, sellerProfile, ...contactData } = updateContactDto;
+    const { buyerProfile, sellerProfile, assignedAgentId, organizationId: dtoOrgId, ...contactData } = updateContactDto;
 
-    // Verify contact belongs to organization
     const existing = await this.findOne(id, organizationId);
 
-    if (updateContactDto.assignedAgentId) {
-      await this.verifyAgentMembership(updateContactDto.assignedAgentId, organizationId);
+    if (assignedAgentId) {
+      await this.verifyAgentMembership(assignedAgentId, organizationId);
     }
 
     const data: Prisma.ContactUpdateInput = {
       ...contactData,
     };
 
-    if (updateContactDto.organizationId && updateContactDto.organizationId !== organizationId) {
+    if (dtoOrgId && dtoOrgId !== organizationId) {
         throw new ForbiddenException('Cannot move contacts between organizations');
     }
 
-    if (updateContactDto.assignedAgentId) {
-      data.assignedAgent = { connect: { id: updateContactDto.assignedAgentId } };
-      delete (data as any).assignedAgentId;
+    if (assignedAgentId) {
+      data.assignedAgent = { connect: { id: assignedAgentId } };
+    } else if (assignedAgentId === null) {
+      data.assignedAgent = { disconnect: true };
     }
 
     if (updateContactDto.type === ContactType.BUYER && buyerProfile) {

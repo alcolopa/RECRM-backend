@@ -1,0 +1,671 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Enums ---
+
+enum UserRole {
+  OWNER
+  ADMIN
+  AGENT
+  SUPPORT
+}
+
+enum UnitPreference {
+  METRIC
+  IMPERIAL
+}
+
+enum ContactStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  ACTIVE
+  INACTIVE
+  LOST
+}
+
+enum ContactType {
+  BUYER
+  SELLER
+}
+
+enum FinancingType {
+  CASH
+  MORTGAGE
+  PRIVATE_FINANCING
+  OTHER
+}
+
+enum BuyingTimeline {
+  ASAP
+  ONE_TO_THREE_MONTHS
+  THREE_TO_SIX_MONTHS
+  SIX_PLUS_MONTHS
+  JUST_LOOKING
+}
+
+enum PurchasePurpose {
+  PRIMARY_RESIDENCE
+  INVESTMENT
+  VACATION_HOME
+  RELOCATION
+}
+
+enum ListingType {
+  EXCLUSIVE
+  NON_EXCLUSIVE
+}
+
+enum SellingTimeline {
+  ASAP
+  ONE_TO_THREE_MONTHS
+  THREE_TO_SIX_MONTHS
+  SIX_PLUS_MONTHS
+  JUST_EXPLORING
+}
+
+enum ReasonForSelling {
+  UPGRADE
+  RELOCATION
+  INVESTMENT_EXIT
+  FINANCIAL_NEED
+  DIVORCE
+  INHERITANCE
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  LOST
+  CLOSED_WON
+}
+
+enum DealStage {
+  DISCOVERY
+  QUALIFICATION
+  PRESENTATION
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  UNDER_CONTRACT
+  SOLD
+  RENTED
+  OFF_MARKET
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  VILLA
+  CONDO
+  TOWNHOUSE
+  LAND
+  COMMERCIAL
+  OFFICE
+  RETAIL
+  INDUSTRIAL
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  SITE_VISIT
+  NOTE
+  OFFER
+}
+
+enum NegotiationStatus {
+  ACTIVE
+  ACCEPTED
+  REJECTED
+  CLOSED
+}
+
+enum OfferStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  COUNTERED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum OfferAction {
+  OFFER_CREATED
+  PRICE_UPDATED
+  STATUS_CHANGED
+  COUNTER_OFFER
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  OFFER_WITHDRAWN
+}
+
+// --- Entities ---
+
+model Organization {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  logo        String? // URL or key to logo file
+  accentColor String  @default("EMERALD")
+
+  ownerId String @unique
+  owner   User   @relation("OrganizationOwner", fields: [ownerId], references: [id])
+
+  memberships  Membership[]
+  contacts     Contact[]
+  leads        Lead[]
+  properties   Property[]
+  deals        Deal[]
+  activities   Activity[]
+  tasks        Task[]
+  notes        Note[]
+  files        File[]
+  tags         Tag[]
+  negotiations OfferNegotiation[]
+  offers       Offer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([id])
+}
+
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  password       String
+  firstName      String?
+  lastName       String?
+  avatar         String? // URL to profile picture
+  phone          String? // Agent phone number
+  unitPreference UnitPreference @default(METRIC)
+
+  memberships        Membership[]
+  ownedOrganizations Organization[] @relation("OrganizationOwner")
+
+  assignedLeads      Lead[]     @relation("AssignedUser")
+  assignedDeals      Deal[]     @relation("AssignedUser")
+  assignedTasks      Task[]     @relation("AssignedUser")
+  assignedProperties Property[] @relation("PropertyAgent")
+  createdActivities  Activity[] @relation("CreatedBy")
+  createdNotes       Note[]     @relation("CreatedBy")
+  assignedContacts   Contact[]  @relation("AssignedAgent")
+
+  createdNegotiations OfferNegotiation[] @relation("CreatedBy")
+  createdOffers       Offer[]            @relation("CreatedBy")
+  offerHistory        OfferHistory[]     @relation("HistoryUser")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+model Membership {
+  id   String   @id @default(uuid())
+  role UserRole @default(AGENT)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model Contact {
+  id              String        @id @default(uuid())
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String
+  secondaryPhone  String?
+  type            ContactType
+  leadSource      String?
+  status          ContactStatus @default(NEW)
+  notes           String?       @db.Text
+  tags            String[]      @default([])
+  lastContactedAt DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedAgentId String?
+  assignedAgent   User?   @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+
+  buyerProfile  BuyerProfile?
+  sellerProfile SellerProfile?
+
+  deals        Deal[]
+  activities   Activity[]
+  contactNotes Note[]             @relation("ContactNotes")
+  entityTags   EntityTag[]
+  negotiations OfferNegotiation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([assignedAgentId])
+}
+
+model BuyerProfile {
+  id                String         @id @default(uuid())
+  contactId         String         @unique
+  contact           Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  minBudget         Decimal?
+  maxBudget         Decimal?
+  financingType     FinancingType?
+  preApproved       Boolean        @default(false)
+  preApprovedAmount Decimal?
+  downPayment       Decimal?
+
+  // Preferences
+  propertyTypes PropertyType[] @default([])
+  minBedrooms   Int?
+  minBathrooms  Float?
+  minArea       Float?
+  maxArea       Float?
+
+  // Location
+  preferredCities        String[] @default([])
+  preferredNeighborhoods String[] @default([])
+
+  // Lifestyle
+  parkingRequired Boolean @default(false)
+  gardenRequired  Boolean @default(false)
+  furnished       Boolean @default(false)
+  newConstruction Boolean @default(false)
+
+  // Timeline & Motivation
+  buyingTimeline  BuyingTimeline?
+  purchasePurpose PurchasePurpose?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SellerProfile {
+  id              String   @id @default(uuid())
+  contactId       String   @unique
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  minimumPrice    Decimal?
+  mortgageBalance Decimal?
+
+  // Sale Conditions
+  listingType        ListingType?
+  readyToList        Boolean      @default(false)
+  occupied           Boolean      @default(false)
+  tenantLeaseEndDate DateTime?
+
+  // Timeline & Motivation
+  sellingTimeline  SellingTimeline?
+  reasonForSelling ReasonForSelling?
+
+  properties Property[] @relation("SellerProperty")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id        String     @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  status    LeadStatus @default(NEW)
+  source    String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedUserId String?
+  assignedUser   User?   @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  tags         EntityTag[]
+  negotiations OfferNegotiation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([assignedUserId])
+  @@index([email])
+}
+
+model Property {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  address     String
+  city        String?
+  state       String?
+  zipCode     String?
+  country     String?
+  governorate String?
+  price       Decimal?
+  status      PropertyStatus @default(AVAILABLE)
+  type        PropertyType   @default(HOUSE)
+  bedrooms    Int?
+  bathrooms   Float?
+  area        Float? // Square footage or meters
+  lotSize     Float?
+  yearBuilt   Int?
+  features    String[] // Legacy field, kept for backward compat
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedUserId String?
+  assignedUser   User?   @relation("PropertyAgent", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  sellerProfileId String?
+  sellerProfile   SellerProfile? @relation("SellerProperty", fields: [sellerProfileId], references: [id], onDelete: SetNull)
+
+  propertyImages   PropertyImage[]
+  propertyFeatures PropertyFeature[]
+  deals            Deal[]
+  tags             EntityTag[]
+  negotiations     OfferNegotiation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model PropertyImage {
+  id         String   @id @default(uuid())
+  url        String
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([propertyId])
+}
+
+model OfferNegotiation {
+  id     String            @id @default(uuid())
+  status NegotiationStatus @default(ACTIVE)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  offers Offer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([contactId])
+}
+
+model Offer {
+  id             String        @id @default(uuid())
+  price          Decimal
+  deposit        Decimal?
+  financingType  FinancingType
+  closingDate    DateTime?
+  expirationDate DateTime?
+  status         OfferStatus
+  notes          String?
+
+  negotiationId String
+  negotiation   OfferNegotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  history OfferHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([negotiationId])
+}
+
+model OfferHistory {
+  id       String      @id @default(uuid())
+  action   OfferAction
+  field    String?
+  oldValue String?
+  newValue String?
+
+  offerId String
+  offer   Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("HistoryUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([offerId])
+}
+
+model Deal {
+  id    String    @id @default(uuid())
+  title String
+  value Decimal?
+  stage DealStage @default(DISCOVERY)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  assignedUserId String?
+  assignedUser   User?   @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  tags EntityTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([assignedUserId])
+}
+
+model Activity {
+  id      String       @id @default(uuid())
+  type    ActivityType @default(NOTE)
+  subject String
+  content String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  dueDate     DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedUserId String?
+  assignedUser   User?   @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([assignedUserId])
+}
+
+model Note {
+  id      String @id @default(uuid())
+  content String
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  contactId String?
+  contact   Contact? @relation("ContactNotes", fields: [contactId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model File {
+  id       String  @id @default(uuid())
+  name     String
+  url      String
+  mimeType String?
+  size     Int?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model Tag {
+  id    String  @id @default(uuid())
+  name  String
+  color String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  entityTags EntityTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model EntityTag {
+  id    String @id @default(uuid())
+  tagId String
+  tag   Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  // Relations to different entities (polymorphic-ish with explicit relations)
+  contactId  String?
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  leadId     String?
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dealId     String?
+  deal       Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tagId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([propertyId])
+  @@index([dealId])
+}
+
+model Feature {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  category String? // e.g. "Amenities", "Utilities", "Security"
+
+  propertyFeatures PropertyFeature[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PropertyFeature {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  featureId  String
+  feature    Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([propertyId, featureId])
+  @@index([propertyId])
+  @@index([featureId])
+}

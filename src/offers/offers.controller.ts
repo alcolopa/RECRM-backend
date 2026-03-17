@@ -27,36 +27,36 @@ export class OffersController {
   @Post()
   async create(@Body() createOfferDto: CreateOfferDto, @Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.create(createOfferDto, req.user);
+    return this.offersService.create(createOfferDto, { ...req.user, organizationId });
   }
 
   @Get()
   async findAll(@Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.findAll(req.user);
+    return this.offersService.findAll({ ...req.user, organizationId });
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.findOne(id, req.user);
+    return this.offersService.findOne(id, { ...req.user, organizationId });
   }
 
   @Post(':id/counter')
   async counter(@Param('id') id: string, @Body() counterOfferDto: CounterOfferDto, @Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.counter(id, counterOfferDto, req.user);
+    return this.offersService.counter(id, counterOfferDto, { ...req.user, organizationId });
   }
 
   @Post(':id/accept')
   async accept(@Param('id') id: string, @Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.accept(id, req.user);
+    return this.offersService.accept(id, { ...req.user, organizationId });
   }
 
   @Post(':id/reject')
   async reject(@Param('id') id: string, @Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.reject(id, req.user);
+    return this.offersService.reject(id, { ...req.user, organizationId });
   }
 }

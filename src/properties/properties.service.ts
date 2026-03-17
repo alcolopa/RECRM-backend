@@ -37,6 +37,22 @@ export class PropertiesService {
         },
       },
     },
+    negotiations: {
+      include: {
+        contact: true,
+        offers: {
+          include: {
+            createdBy: true,
+          },
+          orderBy: {
+            createdAt: 'desc' as const,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc' as const,
+      },
+    },
   };
 
   /**
@@ -105,7 +121,7 @@ export class PropertiesService {
     const properties = await this.prisma.property.findMany({
       where: organizationId ? { organizationId } : {},
       include: this.propertyIncludes,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' as const },
     });
     return properties.map(p => this.transformProperty(p));
   }

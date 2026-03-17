@@ -139,6 +139,14 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: updateData,
+      include: {
+        memberships: {
+          include: {
+            organization: true
+          }
+        },
+        ownedOrganizations: true
+      }
     });
   }
 }

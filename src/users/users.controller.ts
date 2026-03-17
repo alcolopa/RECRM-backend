@@ -23,7 +23,7 @@ export class UsersController {
     await this.verifyMembership(req.user.userId, organizationId);
 
     const users = await this.usersService.findAll(organizationId);
-    return users.map(user => {
+    return users.map((user: any) => {
       const { password, ...result } = user;
       if (result.avatar) {
         result.avatar = this.uploadService.getFileUrl(result.avatar);
@@ -34,7 +34,10 @@ export class UsersController {
 
   private async verifyMembership(userId: string, organizationId: string) {
     const user = await this.usersService.findById(userId);
-    const isMember = user?.memberships.some((m: any) => m.organizationId === organizationId);
+    if (!user) {
+      throw new ForbiddenException('User not found');
+    }
+    const isMember = (user.memberships as any[]).some((m: any) => m.organizationId === organizationId);
     if (!isMember) {
       throw new ForbiddenException('You are not a member of this organization');
     }
@@ -46,11 +49,22 @@ export class UsersController {
     if (!user) {
       throw new ForbiddenException();
     }
-    const { password, ...result } = user;
+    const { password, ...result } = user as any;
     
     // Transform avatar key to URL
     if (result.avatar) {
       result.avatar = this.uploadService.getFileUrl(result.avatar);
+    }
+
+    // Transform organization logos in memberships
+    if (result.memberships) {
+      result.memberships = result.memberships.map((m: any) => ({
+        ...m,
+        organization: {
+          ...m.organization,
+          logo: m.organization.logo ? this.uploadService.getFileUrl(m.organization.logo) : null,
+        },
+      }));
     }
     
     return result;
@@ -60,11 +74,24 @@ export class UsersController {
   async updateMe(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
     try {
       const user = await this.usersService.update(req.user.userId, updateUserDto);
+      const { password, ...result } = user as any;
+      
       // Transform avatar key to URL
-      if (user.avatar) {
-        user.avatar = this.uploadService.getFileUrl(user.avatar);
+      if (result.avatar) {
+        result.avatar = this.uploadService.getFileUrl(result.avatar);
       }
-      return user;
+
+      // Transform organization logos in memberships
+      if (result.memberships) {
+        result.memberships = result.memberships.map((m: any) => ({
+          ...m,
+          organization: {
+            ...m.organization,
+            logo: m.organization.logo ? this.uploadService.getFileUrl(m.organization.logo) : null,
+          },
+        }));
+      }
+      return result;
     } catch (error: any) {
       if (error.message === 'Email already in use') {
         throw new ConflictException('Email is already taken by another user');

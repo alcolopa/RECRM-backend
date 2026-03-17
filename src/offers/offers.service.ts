@@ -43,7 +43,7 @@ export class OffersService {
       return this.prisma.offer.findMany({
         where: { organizationId: user.organizationId },
         include: this.offerInclude,
-        orderBy: { updatedAt: 'desc' },
+        orderBy: { updatedAt: 'desc' as const },
       });
     }
     return this.prisma.offer.findMany({
@@ -52,7 +52,7 @@ export class OffersService {
         createdById: user.userId,
       },
       include: this.offerInclude,
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: 'desc' as const },
     });
   }
 
@@ -79,6 +79,10 @@ export class OffersService {
 
   async create(createOfferDto: CreateOfferDto, user: any) {
     const { propertyId, contactId, leadId, ...offerData } = createOfferDto;
+
+    // Clean up dates - convert empty strings to null
+    const closingDate = offerData.closingDate || null;
+    const expirationDate = offerData.expirationDate || null;
 
     // 1. Validate property belongs to organization
     const property = await this.prisma.property.findFirst({
@@ -118,15 +122,14 @@ export class OffersService {
           status: NegotiationStatus.ACTIVE,
         },
       });
-
       if (!negotiation) {
         negotiation = await tx.offerNegotiation.create({
           data: {
-            propertyId,
-            contactId,
-            leadId,
-            organizationId: user.organizationId,
-            createdById: user.userId,
+            property: { connect: { id: propertyId } },
+            contact: { connect: { id: contactId } },
+            organization: { connect: { id: user.organizationId } },
+            createdBy: { connect: { id: user.userId } },
+            ...(leadId ? { lead: { connect: { id: leadId } } } : {}),
           },
         });
       }
@@ -135,11 +138,14 @@ export class OffersService {
       const offer = await tx.offer.create({
         data: {
           ...offerData,
+          closingDate,
+          expirationDate,
           status: offerData.status || OfferStatus.SUBMITTED,
-          negotiationId: negotiation.id,
-          organizationId: user.organizationId,
-          createdById: user.userId,
+          negotiation: { connect: { id: negotiation.id } },
+          organization: { connect: { id: user.organizationId } },
+          createdBy: { connect: { id: user.userId } },
         },
+        include: this.offerInclude,
       });
 
       // 4. Create history
@@ -199,10 +205,12 @@ export class OffersService {
       const newOffer = await tx.offer.create({
         data: {
           ...counterOfferDto,
+          closingDate: counterOfferDto.closingDate || null,
+          expirationDate: counterOfferDto.expirationDate || null,
           status: OfferStatus.SUBMITTED,
-          negotiationId: originalOffer.negotiationId,
-          organizationId: user.organizationId,
-          createdById: user.userId,
+          negotiation: { connect: { id: originalOffer.negotiationId } },
+          organization: { connect: { id: user.organizationId } },
+          createdBy: { connect: { id: user.userId } },
         },
       });
 

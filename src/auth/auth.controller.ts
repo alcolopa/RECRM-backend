@@ -6,12 +6,14 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UserRole } from '@prisma/client';
+import { UploadService } from '../upload/upload.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,
     private usersService: UsersService,
+    private uploadService: UploadService,
   ) {}
 
   @Post('login')
@@ -54,6 +56,12 @@ export class AuthController {
       const { access_token } = await this.authService.login(user);
       
       const { password, ...userWithoutPassword } = user;
+
+      // Transform avatar key to URL
+      if (userWithoutPassword.avatar) {
+        userWithoutPassword.avatar = this.uploadService.getFileUrl(userWithoutPassword.avatar);
+      }
+
       return {
         user: userWithoutPassword,
         access_token,
@@ -76,6 +84,23 @@ export class AuthController {
       throw new UnauthorizedException();
     }
     const { password, ...result } = user;
+
+    // Transform avatar key to URL
+    if (result.avatar) {
+      result.avatar = this.uploadService.getFileUrl(result.avatar);
+    }
+
+    // Transform organization logos in memberships
+    if (result.memberships) {
+      result.memberships = result.memberships.map((m: any) => ({
+        ...m,
+        organization: {
+          ...m.organization,
+          logo: m.organization.logo ? this.uploadService.getFileUrl(m.organization.logo) : null,
+        },
+      }));
+    }
+
     return result;
   }
 }

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated"
 }
 
 datasource db {
@@ -174,6 +175,7 @@ model Organization {
   email       String?
   website     String?
   logo        String?      // URL or key to logo file
+  accentColor String       @default("EMERALD")
   
   ownerId     String   @unique
   owner       User     @relation("OrganizationOwner", fields: [ownerId], references: [id])

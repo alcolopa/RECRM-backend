@@ -27,5 +27,9 @@ export class UpdateOrganizationDto {
 
   @IsString()
   @IsOptional()
+  accentColor?: string;
+
+  @IsString()
+  @IsOptional()
   ownerId?: string;
 }
