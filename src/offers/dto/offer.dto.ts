@@ -1,5 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsDateString, IsUUID } from 'class-validator';
-import { FinancingType, OfferStatus } from '@prisma/client';
+import { FinancingType, OfferStatus, OffererType } from '@prisma/client';
 
 export class CreateOfferDto {
   @IsUUID()
@@ -38,6 +38,10 @@ export class CreateOfferDto {
   @IsOptional()
   notes?: string;
 
+  @IsEnum(OffererType)
+  @IsOptional()
+  offerer?: OffererType;
+
   @IsEnum(OfferStatus)
   @IsOptional()
   status?: OfferStatus;
@@ -67,6 +71,10 @@ export class CounterOfferDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsEnum(OffererType)
+  @IsOptional()
+  offerer?: OffererType;
 }
 
 export class UpdateOfferDto {
@@ -93,6 +101,10 @@ export class UpdateOfferDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsEnum(OffererType)
+  @IsOptional()
+  offerer?: OffererType;
 
   @IsEnum(OfferStatus)
   @IsOptional()

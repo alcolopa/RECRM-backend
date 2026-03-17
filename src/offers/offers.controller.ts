@@ -59,4 +59,10 @@ export class OffersController {
     await this.verifyMembership(req.user.userId, organizationId);
     return this.offersService.reject(id, { ...req.user, organizationId });
   }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() updateOfferDto: UpdateOfferDto, @Request() req: any, @Query('organizationId') organizationId: string) {
+    await this.verifyMembership(req.user.userId, organizationId);
+    return this.offersService.update(id, updateOfferDto, { ...req.user, organizationId });
+  }
 }

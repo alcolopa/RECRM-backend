@@ -280,6 +280,8 @@ model Contact {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  convertedFromLead Lead? @relation("LeadToContact")
+
   @@index([organizationId])
   @@index([email])
   @@index([assignedAgentId])
@@ -352,12 +354,23 @@ model Lead {
   phone           String?
   status          LeadStatus   @default(NEW)
   source          String?
+  notes           String?      @db.Text
+  
+  // Potential interests
+  budget          Decimal?
+  preferredLocation String?
+  propertyType    PropertyType?
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   
   assignedUserId  String?
   assignedUser    User?        @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  // Conversion tracking
+  convertedAt     DateTime?
+  convertedContactId String?    @unique
+  convertedContact   Contact?   @relation("LeadToContact", fields: [convertedContactId], references: [id])
 
   tags            EntityTag[]
   negotiations    OfferNegotiation[]
@@ -452,6 +465,11 @@ model OfferNegotiation {
   @@index([contactId])
 }
 
+enum OffererType {
+  AGENCY
+  BUYER
+}
+
 model Offer {
   id              String   @id @default(uuid())
   price           Decimal
@@ -461,6 +479,7 @@ model Offer {
   expirationDate  DateTime?
   status          OfferStatus
   notes           String?
+  offerer         OffererType @default(BUYER)
 
   negotiationId   String
   negotiation     OfferNegotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
@@ -487,6 +506,7 @@ model OfferHistory {
   field     String?
   oldValue  String?
   newValue  String?
+  offerer   OffererType?
 
   offerId   String
   offer     Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)

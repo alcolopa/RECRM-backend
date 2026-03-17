@@ -3,10 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Contact, Prisma, ContactType } from '@prisma/client';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
+import { PropertiesService } from '../properties/properties.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class ContactsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private propertiesService: PropertiesService,
+    private uploadService: UploadService,
+  ) {}
 
   private async verifyAgentMembership(userId: string, organizationId: string) {
     const membership = await this.prisma.membership.findUnique({
@@ -15,6 +21,39 @@ export class ContactsService {
     if (!membership) {
       throw new BadRequestException('Assigned agent must be a member of the organization');
     }
+  }
+
+  private transformContact(contact: any) {
+    if (!contact) return null;
+
+    // Transform contact images/avatars if any
+    // For now contacts don't have avatars themselves but they might have in the future
+    
+    // Transform assigned agent avatar
+    if (contact.assignedAgent?.avatar) {
+      contact.assignedAgent.avatar = this.uploadService.getFileUrl(contact.assignedAgent.avatar);
+    }
+
+    // Transform negotiations and properties
+    if (contact.negotiations) {
+      contact.negotiations = contact.negotiations.map((n: any) => {
+        if (n.property) {
+          n.property = this.propertiesService.transformProperty(n.property);
+        }
+        // Transform offer creators in negotiation
+        if (n.offers) {
+          n.offers = n.offers.map((o: any) => {
+            if (o.createdBy?.avatar) {
+              o.createdBy.avatar = this.uploadService.getFileUrl(o.createdBy.avatar);
+            }
+            return o;
+          });
+        }
+        return n;
+      });
+    }
+
+    return contact;
   }
 
   async create(createContactDto: CreateContactDto): Promise<Contact> {
@@ -40,7 +79,7 @@ export class ContactsService {
       data.sellerProfile = { create: sellerProfile };
     }
 
-    return this.prisma.contact.create({
+    const result = await this.prisma.contact.create({
       data,
       include: {
         buyerProfile: true,
@@ -51,14 +90,16 @@ export class ContactsService {
             firstName: true,
             lastName: true,
             email: true,
+            avatar: true,
           },
         },
       },
     });
+    return this.transformContact(result);
   }
 
   async findAll(organizationId: string, type?: ContactType): Promise<Contact[]> {
-    return this.prisma.contact.findMany({
+    const contacts = await this.prisma.contact.findMany({
       where: { 
         organizationId,
         ...(type ? { type } : {}),
@@ -72,11 +113,13 @@ export class ContactsService {
             firstName: true,
             lastName: true,
             email: true,
+            avatar: true,
           },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return contacts.map(c => this.transformContact(c));
   }
 
   async findOne(id: string, organizationId?: string): Promise<Contact> {
@@ -94,6 +137,7 @@ export class ContactsService {
             firstName: true,
             lastName: true,
             email: true,
+            avatar: true,
           },
         },
         negotiations: {
@@ -121,7 +165,7 @@ export class ContactsService {
     if (!contact) {
       throw new NotFoundException(`Contact with ID ${id} not found`);
     }
-    return contact;
+    return this.transformContact(contact);
   }
 
   async update(id: string, updateContactDto: UpdateContactDto, organizationId: string): Promise<Contact> {
@@ -165,7 +209,7 @@ export class ContactsService {
     }
 
     try {
-      return await this.prisma.contact.update({
+      const result = await this.prisma.contact.update({
         where: { id },
         data,
         include: {
@@ -177,10 +221,12 @@ export class ContactsService {
               firstName: true,
               lastName: true,
               email: true,
+              avatar: true,
             },
           },
         },
       });
+      return this.transformContact(result);
     } catch (error: any) {
       if (error.code === 'P2025') {
         throw new NotFoundException(`Contact with ID ${id} not found`);

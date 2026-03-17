@@ -4,7 +4,7 @@ dotenv.config({ override: true });
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
@@ -16,6 +16,13 @@ async function bootstrap() {
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
+    exceptionFactory: (errors) => {
+      const result = errors.reduce((acc: Record<string, string>, error) => {
+        acc[error.property] = Object.values(error.constraints || {})[0];
+        return acc;
+      }, {});
+      return new BadRequestException(result);
+    },
   }));
 
   // Serve static files (uploads)

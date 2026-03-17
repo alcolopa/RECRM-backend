@@ -59,7 +59,7 @@ export class PropertiesService {
    * Transforms property image URLs from keys to full public URLs
    * and flattens propertyFeatures into a features array.
    */
-  private transformProperty(property: any) {
+  public transformProperty(property: any) {
     if (!property) return null;
     
     if (property.propertyImages) {

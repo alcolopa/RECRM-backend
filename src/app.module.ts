@@ -10,6 +10,7 @@ import { ContactsModule } from './contacts/contacts.module';
 import { UploadModule } from './upload/upload.module';
 import { OrganizationModule } from './organization/organization.module';
 import { OffersModule } from './offers/offers.module';
+import { LeadsModule } from './leads/leads.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { OffersModule } from './offers/offers.module';
     UploadModule,
     OrganizationModule,
     OffersModule,
+    LeadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

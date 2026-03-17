@@ -1,11 +1,17 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto, CounterOfferDto, UpdateOfferDto } from './dto/offer.dto';
-import { OfferStatus, NegotiationStatus, OfferAction, UserRole, ActivityType } from '@prisma/client';
+import { OfferStatus, NegotiationStatus, OfferAction, UserRole, ActivityType, OffererType } from '@prisma/client';
+import { PropertiesService } from '../properties/properties.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class OffersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private propertiesService: PropertiesService,
+    private uploadService: UploadService,
+  ) {}
 
   private offerInclude = {
     negotiation: {
@@ -20,6 +26,11 @@ export class OffersService {
         offers: {
           include: {
             createdBy: true,
+            history: {
+              include: {
+                user: true,
+              },
+            },
           },
           orderBy: {
             createdAt: 'asc' as const,
@@ -38,22 +49,94 @@ export class OffersService {
     },
   };
 
+  private offerListInclude = {
+    negotiation: {
+      include: {
+        property: {
+          include: {
+            propertyImages: true,
+          },
+        },
+        contact: true,
+      },
+    },
+    createdBy: true,
+  };
+
+  /**
+   * Transforms an offer by converting file keys to full URLs for property images and user avatars.
+   */
+  private transformOffer(offer: any) {
+    if (!offer) return null;
+
+    // Transform offer creator's avatar
+    if (offer.createdBy?.avatar) {
+      offer.createdBy.avatar = this.uploadService.getFileUrl(offer.createdBy.avatar);
+    }
+
+    // Transform nested negotiation components
+    if (offer.negotiation) {
+      // Property transformation (images, etc)
+      if (offer.negotiation.property) {
+        offer.negotiation.property = this.propertiesService.transformProperty(offer.negotiation.property);
+      }
+
+      // Negotiation creator transformation
+      if (offer.negotiation.createdBy?.avatar) {
+        offer.negotiation.createdBy.avatar = this.uploadService.getFileUrl(offer.negotiation.createdBy.avatar);
+      }
+
+      // History in negotiation/offers
+      if (offer.negotiation.offers) {
+        offer.negotiation.offers = offer.negotiation.offers.map((o: any) => {
+          if (o.createdBy?.avatar) {
+            o.createdBy.avatar = this.uploadService.getFileUrl(o.createdBy.avatar);
+          }
+          if (o.history) {
+            o.history = o.history.map((h: any) => {
+              if (h.user?.avatar) {
+                h.user.avatar = this.uploadService.getFileUrl(h.user.avatar);
+              }
+              return h;
+            });
+          }
+          return o;
+        });
+      }
+    }
+
+    // Transform history avatars
+    if (offer.history) {
+      offer.history = offer.history.map((h: any) => {
+        if (h.user?.avatar) {
+          h.user.avatar = this.uploadService.getFileUrl(h.user.avatar);
+        }
+        return h;
+      });
+    }
+
+    return offer;
+  }
+
   async findAll(user: any) {
+    let offers;
     if (user.role === UserRole.OWNER || user.role === UserRole.ADMIN) {
-      return this.prisma.offer.findMany({
+      offers = await this.prisma.offer.findMany({
         where: { organizationId: user.organizationId },
-        include: this.offerInclude,
+        include: this.offerListInclude,
+        orderBy: { updatedAt: 'desc' as const },
+      });
+    } else {
+      offers = await this.prisma.offer.findMany({
+        where: {
+          organizationId: user.organizationId,
+          createdById: user.userId,
+        },
+        include: this.offerListInclude,
         orderBy: { updatedAt: 'desc' as const },
       });
     }
-    return this.prisma.offer.findMany({
-      where: {
-        organizationId: user.organizationId,
-        createdById: user.userId,
-      },
-      include: this.offerInclude,
-      orderBy: { updatedAt: 'desc' as const },
-    });
+    return offers.map(offer => this.transformOffer(offer));
   }
 
   async findOne(id: string, user: any) {
@@ -74,7 +157,7 @@ export class OffersService {
       throw new ForbiddenException('You do not have access to this offer');
     }
 
-    return offer;
+    return this.transformOffer(offer);
   }
 
   async create(createOfferDto: CreateOfferDto, user: any) {
@@ -162,6 +245,7 @@ export class OffersService {
           offerId: offer.id,
           userId: user.userId,
           action: OfferAction.OFFER_CREATED,
+          offerer: offerData.offerer || OffererType.BUYER,
           newValue: JSON.stringify(offerData),
         },
       });
@@ -178,10 +262,11 @@ export class OffersService {
         },
       });
 
-      return tx.offer.findUnique({
+      const result = await tx.offer.findUnique({
         where: { id: offer.id },
         include: this.offerInclude,
       });
+      return this.transformOffer(result);
     });
   }
 
@@ -193,45 +278,36 @@ export class OffersService {
     }
 
     return await this.prisma.$transaction(async (tx) => {
-      // 1. Update original offer status
-      await tx.offer.update({
-        where: { id },
-        data: { status: OfferStatus.COUNTERED },
-      });
-
-      await tx.offerHistory.create({
-        data: {
-          offerId: id,
-          userId: user.userId,
-          action: OfferAction.STATUS_CHANGED,
-          oldValue: originalOffer.status,
-          newValue: OfferStatus.COUNTERED,
-        },
-      });
-
       const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...counterData } = counterOfferDto;
       const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
       const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
 
-      // 2. Create new counter offer
-      const newOffer = await tx.offer.create({
+      // 1. Update the existing offer with new counter data
+      const updatedOffer = await tx.offer.update({
+        where: { id },
         data: {
           ...counterData,
           closingDate,
           expirationDate,
-          status: OfferStatus.SUBMITTED,
-          negotiation: { connect: { id: originalOffer.negotiationId } },
-          organization: { connect: { id: user.organizationId } },
-          createdBy: { connect: { id: user.userId } },
+          status: OfferStatus.COUNTERED,
         },
       });
 
+      // 2. Add to history
       await tx.offerHistory.create({
         data: {
-          offerId: newOffer.id,
+          offerId: id,
           userId: user.userId,
           action: OfferAction.COUNTER_OFFER,
-          newValue: JSON.stringify(counterOfferDto),
+          offerer: counterData.offerer,
+          oldValue: JSON.stringify({
+            price: originalOffer.price,
+            status: originalOffer.status,
+            closingDate: originalOffer.closingDate,
+            expirationDate: originalOffer.expirationDate,
+            offerer: originalOffer.offerer,
+          }),
+          newValue: JSON.stringify(counterData),
         },
       });
 
@@ -240,25 +316,26 @@ export class OffersService {
         data: {
           type: ActivityType.OFFER,
           subject: 'Offer Countered',
-          content: `Counter offer of ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(counterOfferDto.price))} submitted.`,
+          content: `Offer updated with a counter-price of ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(counterOfferDto.price))}.`,
           organizationId: user.organizationId,
           contactId: originalOffer.negotiation.contactId,
           createdById: user.userId,
         },
       });
 
-      return tx.offer.findUnique({
-        where: { id: newOffer.id },
+      const result = await tx.offer.findUnique({
+        where: { id: originalOffer.id },
         include: this.offerInclude,
       });
+      return this.transformOffer(result);
     });
   }
 
   async accept(id: string, user: any) {
     const offer = await this.findOne(id, user);
 
-    if (offer.status !== OfferStatus.SUBMITTED && offer.status !== OfferStatus.UNDER_REVIEW) {
-      throw new BadRequestException('Only submitted or under-review offers can be accepted');
+    if (offer.status !== OfferStatus.SUBMITTED && offer.status !== OfferStatus.UNDER_REVIEW && offer.status !== OfferStatus.COUNTERED) {
+      throw new BadRequestException('Only submitted, under-review, or countered offers can be accepted');
     }
 
     return await this.prisma.$transaction(async (tx) => {
@@ -310,10 +387,11 @@ export class OffersService {
         },
       });
 
-      return tx.offer.findUnique({
+      const result = await tx.offer.findUnique({
         where: { id: offer.id },
         include: this.offerInclude,
       });
+      return this.transformOffer(result);
     });
   }
 
@@ -348,10 +426,48 @@ export class OffersService {
         },
       });
 
-      return tx.offer.findUnique({
+      const result = await tx.offer.findUnique({
         where: { id: offer.id },
         include: this.offerInclude,
       });
+      return this.transformOffer(result);
+    });
+  }
+
+  async update(id: string, updateOfferDto: UpdateOfferDto, user: any) {
+    const offer = await this.findOne(id, user);
+
+    const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...updateData } = updateOfferDto;
+    
+    const data: any = { ...updateData };
+    if (rawClosingDate !== undefined) data.closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
+    if (rawExpirationDate !== undefined) data.expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
+
+    return await this.prisma.$transaction(async (tx) => {
+      const updatedOffer = await tx.offer.update({
+        where: { id },
+        data,
+      });
+
+      // Log if notes changed
+      if (updateData.notes !== undefined && updateData.notes !== offer.notes) {
+        await tx.offerHistory.create({
+          data: {
+            offerId: id,
+            userId: user.userId,
+            action: OfferAction.STATUS_CHANGED, // Or create a new action type like NOTE_ADDED
+            field: 'notes',
+            oldValue: offer.notes,
+            newValue: updateData.notes,
+          },
+        });
+      }
+
+      const result = await tx.offer.findUnique({
+        where: { id: offer.id },
+        include: this.offerInclude,
+      });
+      return this.transformOffer(result);
     });
   }
 }
