@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "./generated"
 }
 
 datasource db {
@@ -33,6 +32,7 @@ enum ContactStatus {
 enum ContactType {
   BUYER
   SELLER
+  BOTH
 }
 
 enum FinancingType {

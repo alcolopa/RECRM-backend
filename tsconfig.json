@@ -14,9 +14,7 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "paths": {
-      "@prisma/client": ["prisma/generated"]
-    }
+    "paths": {}
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

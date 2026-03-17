@@ -78,11 +78,19 @@ export class OffersService {
   }
 
   async create(createOfferDto: CreateOfferDto, user: any) {
-    const { propertyId, contactId, leadId, ...offerData } = createOfferDto;
+    const { propertyId, contactId, leadId, closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...offerData } = createOfferDto;
 
-    // Clean up dates - convert empty strings to null
-    const closingDate = offerData.closingDate || null;
-    const expirationDate = offerData.expirationDate || null;
+    // Clean up dates - convert empty strings or date strings to Date objects or null
+    const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
+    const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
+
+    // Check for invalid dates
+    if (closingDate && isNaN(closingDate.getTime())) {
+      throw new BadRequestException('Invalid closing date format');
+    }
+    if (expirationDate && isNaN(expirationDate.getTime())) {
+      throw new BadRequestException('Invalid expiration date format');
+    }
 
     // 1. Validate property belongs to organization
     const property = await this.prisma.property.findFirst({
@@ -201,12 +209,16 @@ export class OffersService {
         },
       });
 
+      const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...counterData } = counterOfferDto;
+      const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
+      const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
+
       // 2. Create new counter offer
       const newOffer = await tx.offer.create({
         data: {
-          ...counterOfferDto,
-          closingDate: counterOfferDto.closingDate || null,
-          expirationDate: counterOfferDto.expirationDate || null,
+          ...counterData,
+          closingDate,
+          expirationDate,
           status: OfferStatus.SUBMITTED,
           negotiation: { connect: { id: originalOffer.negotiationId } },
           organization: { connect: { id: user.organizationId } },

@@ -33,9 +33,10 @@ export class ContactsService {
       data.assignedAgent = { connect: { id: assignedAgentId } };
     }
 
-    if (contactData.type === ContactType.BUYER && buyerProfile) {
+    if ((contactData.type === ContactType.BUYER || contactData.type === ContactType.BOTH) && buyerProfile) {
       data.buyerProfile = { create: buyerProfile };
-    } else if (contactData.type === ContactType.SELLER && sellerProfile) {
+    }
+    if ((contactData.type === ContactType.SELLER || contactData.type === ContactType.BOTH) && sellerProfile) {
       data.sellerProfile = { create: sellerProfile };
     }
 
@@ -146,14 +147,15 @@ export class ContactsService {
       data.assignedAgent = { disconnect: true };
     }
 
-    if (updateContactDto.type === ContactType.BUYER && buyerProfile) {
+    if ((updateContactDto.type === ContactType.BUYER || updateContactDto.type === ContactType.BOTH) && buyerProfile) {
       data.buyerProfile = {
         upsert: {
           create: buyerProfile as any,
           update: buyerProfile as any,
         },
       };
-    } else if (updateContactDto.type === ContactType.SELLER && sellerProfile) {
+    }
+    if ((updateContactDto.type === ContactType.SELLER || updateContactDto.type === ContactType.BOTH) && sellerProfile) {
       data.sellerProfile = {
         upsert: {
           create: sellerProfile as any,
