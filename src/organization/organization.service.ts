@@ -38,7 +38,9 @@ export class OrganizationService {
 
     return this.prisma.organization.update({
       where: { id },
-      data: updateOrganizationDto,
+      data: {
+        ...updateOrganizationDto,
+      },
       include: { owner: true }
     });
   }

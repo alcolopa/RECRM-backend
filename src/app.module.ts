@@ -11,6 +11,7 @@ import { UploadModule } from './upload/upload.module';
 import { OrganizationModule } from './organization/organization.module';
 import { OffersModule } from './offers/offers.module';
 import { LeadsModule } from './leads/leads.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LeadsModule } from './leads/leads.module';
     OrganizationModule,
     OffersModule,
     LeadsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -67,7 +67,6 @@ export class AuthController {
         access_token,
       };
     } catch (error: any) {
-      console.error('Registration error:', error);
       // Check for unique constraint violation on slug
       if (error.code === 'P2002') {
         throw new ConflictException('Organization slug already exists. Please provide a different one.');

@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsOptional, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsOptional, MinLength, IsObject } from 'class-validator';
 
 export class UpdateUserDto {
   @IsEmail()
@@ -32,5 +32,13 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  preferredTheme?: 'LIGHT' | 'DARK' | 'SYSTEM';
+
+  @IsString()
+  @IsOptional()
   oldPassword?: string;
+
+  @IsOptional()
+  @IsObject()
+  dashboardConfig?: any;
 }

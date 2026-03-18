@@ -1,4 +1,4 @@
-import { Controller, Patch, Body, UseGuards, Request, Get, ForbiddenException, ConflictException, Post, UseInterceptors, UploadedFile, BadRequestException, Query } from '@nestjs/common';
+import { Controller, Patch, Body, UseGuards, Request, Get, ForbiddenException, ConflictException, Post, UseInterceptors, UploadedFile, BadRequestException, Query, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -43,13 +43,9 @@ export class UsersController {
     }
   }
 
-  @Get('me')
-  async getMe(@Request() req: any) {
-    const user = await this.usersService.findById(req.user.userId);
-    if (!user) {
-      throw new ForbiddenException();
-    }
-    const { password, ...result } = user as any;
+  private transformUser(user: any) {
+    if (!user) return null;
+    const { password, ...result } = user;
     
     // Transform avatar key to URL
     if (result.avatar) {
@@ -70,28 +66,20 @@ export class UsersController {
     return result;
   }
 
+  @Get('me')
+  async getMe(@Request() req: any) {
+    const user = await this.usersService.findById(req.user.userId);
+    if (!user) {
+      throw new ForbiddenException();
+    }
+    return this.transformUser(user);
+  }
+
   @Patch('me')
   async updateMe(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
     try {
       const user = await this.usersService.update(req.user.userId, updateUserDto);
-      const { password, ...result } = user as any;
-      
-      // Transform avatar key to URL
-      if (result.avatar) {
-        result.avatar = this.uploadService.getFileUrl(result.avatar);
-      }
-
-      // Transform organization logos in memberships
-      if (result.memberships) {
-        result.memberships = result.memberships.map((m: any) => ({
-          ...m,
-          organization: {
-            ...m.organization,
-            logo: m.organization.logo ? this.uploadService.getFileUrl(m.organization.logo) : null,
-          },
-        }));
-      }
-      return result;
+      return this.transformUser(user);
     } catch (error: any) {
       if (error.message === 'Email already in use') {
         throw new ConflictException('Email is already taken by another user');
@@ -127,10 +115,21 @@ export class UsersController {
     const key = await this.uploadService.uploadFile(file, `${req.user.userId}/avatars`);
     
     // Update user with the key (not the full URL)
-    await this.usersService.update(req.user.userId, { avatar: key });
+    const user = await this.usersService.update(req.user.userId, { avatar: key });
     
-    // Return the full URL for the frontend
-    const avatarUrl = this.uploadService.getFileUrl(key);
-    return { avatar: avatarUrl };
+    // Return the full transformed user for the frontend
+    return this.transformUser(user);
+  }
+
+  @Post('me/tutorials/:id')
+  async completeTutorial(@Request() req: any, @Param('id') tutorialId: string) {
+    const user = await this.usersService.completeTutorial(req.user.userId, tutorialId);
+    return this.transformUser(user);
+  }
+
+  @Post('me/tutorials/skip-all')
+  async skipAllTutorials(@Request() req: any) {
+    const user = await this.usersService.skipAllTutorials(req.user.userId);
+    return this.transformUser(user);
   }
 }

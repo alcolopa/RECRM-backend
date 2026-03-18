@@ -17,10 +17,18 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
     exceptionFactory: (errors) => {
-      const result = errors.reduce((acc: Record<string, string>, error) => {
-        acc[error.property] = Object.values(error.constraints || {})[0];
-        return acc;
-      }, {});
+      const result = {};
+      const mapErrors = (errorList: any[], target: any) => {
+        errorList.forEach(error => {
+          if (error.constraints) {
+            target[error.property] = Object.values(error.constraints)[0];
+          } else if (error.children && error.children.length > 0) {
+            target[error.property] = {};
+            mapErrors(error.children, target[error.property]);
+          }
+        });
+      };
+      mapErrors(errors, result);
       return new BadRequestException(result);
     },
   }));

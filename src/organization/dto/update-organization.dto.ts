@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsEmail, IsUrl } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsUrl, IsEnum } from 'class-validator';
+import { OrganizationTheme } from '@prisma/client';
 
 export class UpdateOrganizationDto {
   @IsString()
@@ -28,6 +29,10 @@ export class UpdateOrganizationDto {
   @IsString()
   @IsOptional()
   accentColor?: string;
+
+  @IsEnum(OrganizationTheme)
+  @IsOptional()
+  defaultTheme?: OrganizationTheme;
 
   @IsString()
   @IsOptional()

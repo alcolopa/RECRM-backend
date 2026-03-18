@@ -20,6 +20,17 @@ enum UnitPreference {
   IMPERIAL
 }
 
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum OrganizationTheme {
+  LIGHT
+  DARK
+}
+
 enum ContactStatus {
   NEW
   CONTACTED
@@ -176,6 +187,7 @@ model Organization {
   website     String?
   logo        String?      // URL or key to logo file
   accentColor String       @default("EMERALD")
+  defaultTheme OrganizationTheme @default(LIGHT)
   
   ownerId     String   @unique
   owner       User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
@@ -208,7 +220,10 @@ model User {
   avatar          String?      // URL to profile picture
   phone           String?      // Agent phone number
   unitPreference  UnitPreference @default(METRIC)
-  
+  preferredTheme  ThemePreference @default(SYSTEM)
+  completedTutorials String[]    @default([]) // Track which tutorials the user has seen
+  dashboardConfig    Json?        // Custom dashboard layout and widget settings
+
   memberships     Membership[]
   ownedOrganizations Organization[] @relation("OrganizationOwner")
   
