@@ -5,20 +5,24 @@ import * as fs from 'fs/promises';
 import { join, dirname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import * as sharp from 'sharp';
+import { ConfigUtil } from '../common/utils/config.util';
 
 @Injectable()
 export class UploadService {
   private readonly useS3: boolean;
   private readonly publicUrl: string;
   private readonly logger = new Logger(UploadService.name);
+  private config: ConfigUtil;
 
   constructor(
     private configService: ConfigService,
     private s3Service: S3Service,
   ) {
-    const destination = this.configService.get<string>('UPLOAD_DESTINATION')?.toLowerCase().replace(/['"]/g, '');
+    this.config = new ConfigUtil(configService);
+    
+    const destination = this.config.get('UPLOAD_DESTINATION').toLowerCase();
     this.useS3 = destination === 's3';
-    this.publicUrl = (this.configService.get<string>('AWS_S3_PUBLIC_URL') || 'http://localhost:3000/uploads').replace(/['"]/g, '');
+    this.publicUrl = this.config.get('AWS_S3_PUBLIC_URL', 'http://localhost:3000/uploads');
     
     this.logger.log(`Upload Service initialized. Destination: ${this.useS3 ? 'S3' : 'Local'}`);
     this.logger.log(`Public URL: ${this.publicUrl}`);

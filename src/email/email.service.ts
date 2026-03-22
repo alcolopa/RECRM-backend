@@ -1,32 +1,35 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { ConfigUtil } from '../common/utils/config.util';
 
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly logger = new Logger(EmailService.name);
+  private config: ConfigUtil;
 
   constructor(private configService: ConfigService) {
-    const port = parseInt(this.configService.get<string>('SMTP_PORT') || '587');
+    this.config = new ConfigUtil(configService);
+    
+    const port = this.config.getNumber('SMTP_PORT', 587);
     
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST'),
+      host: this.config.get('SMTP_HOST'),
       port: port,
-      secure: port === 465, // true for 465, false for other ports
+      secure: port === 465,
       auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
+        user: this.config.get('SMTP_USER'),
+        pass: this.config.get('SMTP_PASS'),
       },
       tls: {
-        // Essential for local development where some certificate chains may be incomplete
         rejectUnauthorized: false
       }
     });
   }
 
   async sendMail(to: string, subject: string, html: string) {
-    const from = this.configService.get<string>('SMTP_FROM') || 'noreply@estatehub.com';
+    const from = this.config.get('SMTP_FROM', 'noreply@estatehub.com');
     
     try {
       const info = await this.transporter.sendMail({
@@ -44,7 +47,7 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(to: string, token: string) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const frontendUrl = this.config.get('FRONTEND_URL', 'http://localhost:5173');
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
     
     const subject = 'Reset Your EstateHub Password';
@@ -145,7 +148,7 @@ export class EmailService {
   }
 
   async sendInvitationEmail(to: string, orgName: string, token: string, isNewUser: boolean) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const frontendUrl = this.config.get('FRONTEND_URL', 'http://localhost:5173');
     const invitationLink = `${frontendUrl}/invite/${token}`;
     
     const subject = `You've been invited to join ${orgName} on EstateHub`;
