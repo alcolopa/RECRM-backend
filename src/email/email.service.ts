@@ -130,6 +130,7 @@ export class EmailService {
   }
 
   async sendWelcomeEmail(to: string, name: string) {
+    const frontendUrl = this.config.get('FRONTEND_URL', 'http://localhost:5173');
     const subject = 'Welcome to EstateHub CRM';
     const html = `
       <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -148,7 +149,7 @@ export class EmailService {
               We're excited to have you on board. EstateHub is designed to help you manage your leads, properties, and deals more effectively.
             </p>
             <div style="text-align: center; margin: 32px 0;">
-              <a href="http://localhost:5173" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none;">
+              <a href="${frontendUrl}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none;">
                 Go to Dashboard
               </a>
             </div>

@@ -26,10 +26,10 @@ export class PermissionsGuard implements CanActivate {
     
     // Improved organizationId detection
     const organizationId = 
-      request.params?.id || 
       request.query?.organizationId || 
       request.body?.organizationId || 
-      request.params?.organizationId;
+      request.params?.organizationId ||
+      request.params?.id;
 
     if (!userId || !organizationId) {
       // If we can't find an org ID, we can't check permissions
