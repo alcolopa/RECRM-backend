@@ -75,6 +75,10 @@ export class CounterOfferDto {
   @IsEnum(OffererType)
   @IsOptional()
   offerer?: OffererType;
+
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }
 
 export class UpdateOfferDto {
@@ -109,4 +113,8 @@ export class UpdateOfferDto {
   @IsEnum(OfferStatus)
   @IsOptional()
   status?: OfferStatus;
+
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

@@ -8,4 +8,8 @@ export class ConvertLeadDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

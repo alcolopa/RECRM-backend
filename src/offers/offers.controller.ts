@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Controller('offers')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -36,9 +37,21 @@ export class OffersController {
 
   @Get()
   @Permissions(Permission.DEALS_VIEW)
-  async findAll(@Request() req: any, @Query('organizationId') organizationId: string) {
+  async findAll(
+    @Request() req: any, 
+    @Query('organizationId') organizationId: string,
+    @Query() paginationDto?: PaginationDto,
+  ) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.offersService.findAll({ ...req.user, organizationId });
+    return this.offersService.findAll(
+      { ...req.user, organizationId },
+      { 
+        skip: paginationDto?.skip, 
+        take: paginationDto?.limit,
+        sortBy: paginationDto?.sortBy,
+        sortOrder: paginationDto?.sortOrder,
+      }
+    );
   }
 
   @Get(':id')

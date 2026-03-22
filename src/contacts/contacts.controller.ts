@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Controller('contacts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -41,9 +42,17 @@ export class ContactsController {
     @Request() req: any,
     @Query('organizationId') organizationId: string,
     @Query('type') type?: string,
+    @Query() paginationDto?: PaginationDto,
   ) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.contactsService.findAll(organizationId, type as any);
+    
+    // paginationDto might be empty if no query params were provided
+    const skip = paginationDto?.skip;
+    const take = paginationDto?.limit;
+    const sortBy = paginationDto?.sortBy;
+    const sortOrder = paginationDto?.sortOrder;
+    
+    return this.contactsService.findAll(organizationId, type as any, { skip, take, sortBy, sortOrder });
   }
 
   @Get(':id')

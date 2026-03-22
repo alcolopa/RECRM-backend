@@ -117,13 +117,35 @@ export class PropertiesService {
     return this.transformProperty(property);
   }
 
-  async findAll(organizationId?: string) {
-    const properties = await this.prisma.property.findMany({
-      where: organizationId ? { organizationId } : {},
-      include: this.propertyIncludes,
-      orderBy: { createdAt: 'desc' as const },
-    });
-    return properties.map(p => this.transformProperty(p));
+  async findAll(
+    organizationId?: string, 
+    pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }, 
+    filters?: { assignedUserId?: string, status?: string }
+  ): Promise<{ items: any[], total: number }> {
+    const where = {
+      ...(organizationId ? { organizationId } : {}),
+      ...(filters?.assignedUserId ? { assignedUserId: filters.assignedUserId } : {}),
+      ...(filters?.status ? { status: filters.status as any } : {}),
+    };
+
+    const sortBy = pagination?.sortBy || 'createdAt';
+    const sortOrder = pagination?.sortOrder || 'desc';
+    
+    const [items, total] = await Promise.all([
+      this.prisma.property.findMany({
+        where,
+        include: this.propertyIncludes,
+        orderBy: { [sortBy]: sortOrder },
+        skip: pagination?.skip,
+        take: pagination?.take,
+      }),
+      this.prisma.property.count({ where }),
+    ]);
+
+    return {
+      items: items.map(p => this.transformProperty(p)),
+      total,
+    };
   }
 
   async findOne(id: string, organizationId?: string) {

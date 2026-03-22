@@ -21,22 +21,41 @@ export class LeadsService {
     });
   }
 
-  async findAll(organizationId: string): Promise<Lead[]> {
-    return this.prisma.lead.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        assignedUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            avatar: true,
+  async findAll(
+    organizationId: string, 
+    pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }, 
+    status?: LeadStatus
+  ): Promise<{ items: Lead[], total: number }> {
+    const where = { 
+      organizationId,
+      ...(status ? { status } : {}),
+    };
+
+    const sortBy = pagination?.sortBy || 'createdAt';
+    const sortOrder = pagination?.sortOrder || 'desc';
+    
+    const [items, total] = await Promise.all([
+      this.prisma.lead.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          assignedUser: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+            },
           },
         },
-      },
-    });
+        skip: pagination?.skip,
+        take: pagination?.take,
+      }),
+      this.prisma.lead.count({ where }),
+    ]);
+
+    return { items, total };
   }
 
   async findOne(id: string, organizationId: string): Promise<Lead> {

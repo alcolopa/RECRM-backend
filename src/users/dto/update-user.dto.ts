@@ -43,4 +43,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsObject()
   dashboardConfig?: any;
+
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

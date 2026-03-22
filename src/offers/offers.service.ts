@@ -118,25 +118,35 @@ export class OffersService {
     return offer;
   }
 
-  async findAll(user: any) {
-    let offers;
-    if (user.role === UserRole.OWNER || user.role === UserRole.ADMIN) {
-      offers = await this.prisma.offer.findMany({
-        where: { organizationId: user.organizationId },
-        include: this.offerListInclude,
-        orderBy: { updatedAt: 'desc' as const },
-      });
-    } else {
-      offers = await this.prisma.offer.findMany({
-        where: {
+  async findAll(
+    user: any, 
+    pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }
+  ): Promise<{ items: any[], total: number }> {
+    const where = user.role === UserRole.OWNER || user.role === UserRole.ADMIN
+      ? { organizationId: user.organizationId }
+      : {
           organizationId: user.organizationId,
           createdById: user.userId,
-        },
+        };
+
+    const sortBy = pagination?.sortBy || 'updatedAt';
+    const sortOrder = pagination?.sortOrder || 'desc';
+
+    const [items, total] = await Promise.all([
+      this.prisma.offer.findMany({
+        where,
         include: this.offerListInclude,
-        orderBy: { updatedAt: 'desc' as const },
-      });
-    }
-    return offers.map(offer => this.transformOffer(offer));
+        orderBy: { [sortBy]: sortOrder },
+        skip: pagination?.skip,
+        take: pagination?.take,
+      }),
+      this.prisma.offer.count({ where }),
+    ]);
+
+    return {
+      items: items.map(offer => this.transformOffer(offer)),
+      total,
+    };
   }
 
   async findOne(id: string, user: any) {

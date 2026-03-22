@@ -25,6 +25,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Controller('properties')
 export class PropertiesController {
@@ -68,9 +69,20 @@ export class PropertiesController {
   @Get()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions(Permission.PROPERTIES_VIEW)
-  async findAll(@Request() req: any, @Query('organizationId') organizationId: string) {
+  async findAll(
+    @Request() req: any, 
+    @Query('organizationId') organizationId: string,
+    @Query('assignedUserId') assignedUserId?: string,
+    @Query('status') status?: string,
+    @Query() paginationDto?: PaginationDto,
+  ) {
     await this.verifyMembership(req.user.userId, organizationId);
-    return this.propertiesService.findAll(organizationId);
+    return this.propertiesService.findAll(organizationId, {
+      skip: paginationDto?.skip,
+      take: paginationDto?.limit,
+      sortBy: paginationDto?.sortBy,
+      sortOrder: paginationDto?.sortOrder,
+    }, { assignedUserId, status });
   }
 
   @Get(':id')

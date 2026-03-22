@@ -37,4 +37,8 @@ export class UpdateOrganizationDto {
   @IsString()
   @IsOptional()
   ownerId?: string;
+
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

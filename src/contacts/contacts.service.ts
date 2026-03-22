@@ -98,28 +98,46 @@ export class ContactsService {
     return this.transformContact(result);
   }
 
-  async findAll(organizationId: string, type?: ContactType): Promise<Contact[]> {
-    const contacts = await this.prisma.contact.findMany({
-      where: { 
-        organizationId,
-        ...(type ? { type } : {}),
-      },
-      include: {
-        buyerProfile: true,
-        sellerProfile: true,
-        assignedAgent: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            avatar: true,
+  async findAll(
+    organizationId: string, 
+    type?: ContactType, 
+    pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }
+  ): Promise<{ items: Contact[], total: number }> {
+    const where = { 
+      organizationId,
+      ...(type ? { type } : {}),
+    };
+
+    const sortBy = pagination?.sortBy || 'createdAt';
+    const sortOrder = pagination?.sortOrder || 'desc';
+
+    const [items, total] = await Promise.all([
+      this.prisma.contact.findMany({
+        where,
+        include: {
+          buyerProfile: true,
+          sellerProfile: true,
+          assignedAgent: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return contacts.map(c => this.transformContact(c));
+        orderBy: { [sortBy]: sortOrder },
+        skip: pagination?.skip,
+        take: pagination?.take,
+      }),
+      this.prisma.contact.count({ where }),
+    ]);
+
+    return {
+      items: items.map(c => this.transformContact(c)),
+      total,
+    };
   }
 
   async findOne(id: string, organizationId?: string): Promise<Contact> {

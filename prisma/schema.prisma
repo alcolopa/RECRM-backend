@@ -22,15 +22,15 @@ model Organization {
   defaultTheme OrganizationTheme  @default(LIGHT)
   activities   Activity[]
   contacts     Contact[]
+  customRoles  CustomRole[]
   deals        Deal[]
   files        File[]
+  invitations  Invitation[]
   leads        Lead[]
   memberships  Membership[]
   notes        Note[]
   offers       Offer[]
   negotiations OfferNegotiation[]
-  invitations  Invitation[]
-  customRoles  CustomRole[]
   owner        User               @relation("OrganizationOwner", fields: [ownerId], references: [id])
   properties   Property[]
   tags         Tag[]
@@ -53,9 +53,12 @@ model User {
   completedTutorials  String[]           @default([])
   dashboardConfig     Json?
   preferredTheme      ThemePreference    @default(SYSTEM)
+  resetToken          String?
+  resetTokenExpires   DateTime?
   createdActivities   Activity[]         @relation("CreatedBy")
   assignedContacts    Contact[]          @relation("AssignedAgent")
   assignedDeals       Deal[]             @relation("AssignedUser")
+  sentInvitations     Invitation[]       @relation("Inviter")
   assignedLeads       Lead[]             @relation("AssignedUser")
   memberships         Membership[]
   createdNotes        Note[]             @relation("CreatedBy")
@@ -65,25 +68,22 @@ model User {
   ownedOrganizations  Organization[]     @relation("OrganizationOwner")
   assignedProperties  Property[]         @relation("PropertyAgent")
   assignedTasks       Task[]             @relation("AssignedUser")
-  sentInvitations     Invitation[]       @relation("Inviter")
-  resetToken          String?
-  resetTokenExpires   DateTime?
 
   @@index([email])
 }
 
 model CustomRole {
-  id             String       @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
   description    String?
   permissions    Permission[]
-  isSystem       Boolean      @default(false)
+  isSystem       Boolean       @default(false)
   organizationId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  memberships    Membership[]
   invitations    Invitation[]
+  memberships    Membership[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -95,37 +95,31 @@ model Invitation {
   organizationId String
   inviterId      String
   role           UserRole         @default(AGENT)
-  customRoleId   String?
   token          String           @unique
   status         InvitationStatus @default(PENDING)
   expiresAt      DateTime
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inviter        User             @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  customRoleId   String?
   customRole     CustomRole?      @relation(fields: [customRoleId], references: [id])
+  inviter        User             @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([token])
 }
 
-enum InvitationStatus {
-  PENDING
-  ACCEPTED
-  EXPIRED
-}
-
 model Membership {
   id             String       @id @default(uuid())
   role           UserRole     @default(AGENT)
-  customRoleId   String?
   userId         String
   organizationId String
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  customRoleId   String?
+  customRole     CustomRole?  @relation(fields: [customRoleId], references: [id])
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customRole     CustomRole?  @relation(fields: [customRoleId], references: [id])
 
   @@unique([userId, organizationId])
   @@index([userId])
@@ -491,44 +485,37 @@ model PropertyFeature {
   @@index([featureId])
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
 enum Permission {
-  // Leads
   LEADS_VIEW
   LEADS_CREATE
   LEADS_EDIT
   LEADS_DELETE
   LEADS_EXPORT
-
-  // Contacts
   CONTACTS_VIEW
   CONTACTS_CREATE
   CONTACTS_EDIT
   CONTACTS_DELETE
   CONTACTS_EXPORT
-
-  // Properties
   PROPERTIES_VIEW
   PROPERTIES_CREATE
   PROPERTIES_EDIT
   PROPERTIES_DELETE
-
-  // Deals
   DEALS_VIEW
   DEALS_CREATE
   DEALS_EDIT
   DEALS_DELETE
-
-  // Team
   TEAM_VIEW
   TEAM_INVITE
   TEAM_EDIT_ROLES
   TEAM_REMOVE_MEMBER
-
-  // Organization
   ORG_SETTINGS_EDIT
   ORG_BILLING_VIEW
-
-  // Dashboard
   DASHBOARD_VIEW
 }
 
