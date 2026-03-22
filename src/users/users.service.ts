@@ -20,7 +20,7 @@ export class UsersService {
     md: [
       { id: 'totalLeads', type: 'totalLeads', size: 'small', x: 0, y: 0, w: 3, h: 2, order: 0 },
       { id: 'totalProperties', type: 'totalProperties', size: 'small', x: 3, y: 0, w: 3, h: 2, order: 1 },
-      { id: 'activeOffers', type: 'activeOffers', size: 'small', x: 6, y: 0, w: 2, h: 2, order: 2 },
+      { id: 'activeOffers', type: 'activeOffers', size: 'small', x: 6, y: 0, w: 3, h: 2, order: 2 },
       { id: 'totalRevenue', type: 'totalRevenue', size: 'small', x: 8, y: 0, w: 2, h: 2, order: 3 },
       { id: 'recentLeads', type: 'recentLeads', size: 'medium', x: 0, y: 2, w: 5, h: 4, order: 4 },
       { id: 'upcomingTasks', type: 'upcomingTasks', size: 'medium', x: 5, y: 2, w: 5, h: 4, order: 5 },
@@ -61,7 +61,8 @@ export class UsersService {
       include: {
         memberships: {
           include: {
-            organization: true
+            organization: true,
+            customRole: true
           }
         },
         ownedOrganizations: true
@@ -75,7 +76,8 @@ export class UsersService {
       include: {
         memberships: {
           include: {
-            organization: true
+            organization: true,
+            customRole: true
           }
         },
         ownedOrganizations: true
@@ -89,7 +91,8 @@ export class UsersService {
         include: {
           memberships: {
             include: {
-              organization: true
+              organization: true,
+              customRole: true
             }
           },
           ownedOrganizations: true
@@ -109,6 +112,13 @@ export class UsersService {
           }
         }
       } : {},
+      include: {
+        memberships: {
+          include: {
+            customRole: true
+          }
+        }
+      },
       orderBy: { firstName: 'asc' }
     });
   }
@@ -153,9 +163,11 @@ export class UsersService {
           include: {
             memberships: {
               include: {
-                organization: true
+                organization: true,
+                customRole: true
               }
-            }
+            },
+            ownedOrganizations: true
           }
         }) as any;
       });
@@ -166,9 +178,11 @@ export class UsersService {
       include: {
         memberships: {
           include: {
-            organization: true
+            organization: true,
+            customRole: true
           }
-        }
+        },
+        ownedOrganizations: true
       },
     });
   }
@@ -213,7 +227,8 @@ export class UsersService {
         include: {
           memberships: {
             include: {
-              organization: true
+              organization: true,
+              customRole: true
             }
           },
           ownedOrganizations: true
@@ -239,7 +254,8 @@ export class UsersService {
       include: {
         memberships: {
           include: {
-            organization: true
+            organization: true,
+            customRole: true
           }
         },
         ownedOrganizations: true
@@ -248,14 +264,26 @@ export class UsersService {
   }
 
   async skipAllTutorials(userId: string): Promise<User> {
-    // We'll use a special marker "ALL" to indicate all tutorials are skipped
+    // We'll use a special marker "ALL" plus all known tutorial IDs to ensure they are skipped
+    const allTutorialIds = [
+      'dashboard', 
+      'properties', 
+      'contacts', 
+      'leads', 
+      'offers', 
+      'offer-details', 
+      'organization',
+      'skip-all'
+    ];
+
     return this.prisma.user.update({
       where: { id: userId },
-      data: { completedTutorials: ['ALL'] },
+      data: { completedTutorials: allTutorialIds },
       include: {
         memberships: {
           include: {
-            organization: true
+            organization: true,
+            customRole: true
           }
         },
         ownedOrganizations: true

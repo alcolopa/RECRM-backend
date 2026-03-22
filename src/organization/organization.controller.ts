@@ -9,11 +9,14 @@ import {
   Post, 
   UseInterceptors, 
   UploadedFile, 
-  BadRequestException 
+  BadRequestException,
+  Param,
+  Delete 
 } from '@nestjs/common';
 import { OrganizationService } from './organization.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { UserRole } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from '../upload/upload.service';
@@ -140,6 +143,66 @@ export class OrganizationController {
     // Return the full URL
     const logoUrl = this.uploadService.getFileUrl(key);
     return { logo: logoUrl };
+  }
+
+  @Post(':id/invite')
+  async invite(@Param('id') id: string, @Request() req: any, @Body() dto: CreateInvitationDto) {
+    return this.organizationService.createInvitation(id, req.user.userId, dto);
+  }
+
+  @Get(':id/invitations')
+  async getInvitations(@Param('id') id: string, @Request() req: any) {
+    await this.verifyMembership(req.user.userId, id);
+    return this.organizationService.getInvitations(id);
+  }
+
+  @Delete(':id/invitations/:invitationId')
+  async cancelInvitation(
+    @Param('id') id: string,
+    @Param('invitationId') invitationId: string,
+    @Request() req: any,
+  ) {
+    return this.organizationService.cancelInvitation(id, invitationId, req.user.userId);
+  }
+
+  @Post(':id/invitations/:invitationId/resend')
+  async resendInvitation(
+    @Param('id') id: string,
+    @Param('invitationId') invitationId: string,
+    @Request() req: any,
+  ) {
+    return this.organizationService.resendInvitation(id, invitationId, req.user.userId);
+  }
+
+  @Get(':id/roles')
+  async getRoles(@Param('id') id: string, @Request() req: any) {
+    await this.verifyMembership(req.user.userId, id);
+    return this.organizationService.getRoles(id);
+  }
+
+  @Post(':id/roles')
+  async createRole(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.organizationService.createRole(id, req.user.userId, body);
+  }
+
+  @Patch(':id/roles/:roleId')
+  async updateRole(@Param('id') id: string, @Param('roleId') roleId: string, @Request() req: any, @Body() body: any) {
+    return this.organizationService.updateRole(id, req.user.userId, roleId, body);
+  }
+
+  @Delete(':id/roles/:roleId')
+  async deleteRole(@Param('id') id: string, @Param('roleId') roleId: string, @Request() req: any) {
+    return this.organizationService.deleteRole(id, req.user.userId, roleId);
+  }
+
+  @Patch(':id/members/:membershipId/role')
+  async updateMemberRole(
+    @Param('id') id: string, 
+    @Param('membershipId') membershipId: string, 
+    @Request() req: any, 
+    @Body('customRoleId') customRoleId: string
+  ) {
+    return this.organizationService.updateMemberRole(id, req.user.userId, membershipId, customRoleId);
   }
 
   private async verifyMembership(userId: string, organizationId: string) {

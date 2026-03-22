@@ -12,6 +12,9 @@ import { OrganizationModule } from './organization/organization.module';
 import { OffersModule } from './offers/offers.module';
 import { LeadsModule } from './leads/leads.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { EmailModule } from './email/email.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -19,6 +22,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 60,
+    }]),
     AuthModule,
     UsersModule,
     PrismaModule,
@@ -29,8 +36,15 @@ import { DashboardModule } from './dashboard/dashboard.module';
     OffersModule,
     LeadsModule,
     DashboardModule,
+    EmailModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

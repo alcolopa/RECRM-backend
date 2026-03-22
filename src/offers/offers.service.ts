@@ -168,11 +168,29 @@ export class OffersService {
     const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
 
     // Check for invalid dates
-    if (closingDate && isNaN(closingDate.getTime())) {
-      throw new BadRequestException('Invalid closing date format');
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    if (closingDate) {
+      if (isNaN(closingDate.getTime())) {
+        throw new BadRequestException('Invalid closing date format');
+      }
+      if (closingDate < now) {
+        throw new BadRequestException('Closing date cannot be in the past');
+      }
     }
-    if (expirationDate && isNaN(expirationDate.getTime())) {
-      throw new BadRequestException('Invalid expiration date format');
+
+    if (expirationDate) {
+      if (isNaN(expirationDate.getTime())) {
+        throw new BadRequestException('Invalid expiration date format');
+      }
+      if (expirationDate < now) {
+        throw new BadRequestException('Expiration date cannot be in the past');
+      }
+    }
+
+    if (closingDate && expirationDate && expirationDate <= closingDate) {
+      throw new BadRequestException('Expiration date must be further in time than the closing date');
     }
 
     // 1. Validate property belongs to organization
@@ -281,6 +299,32 @@ export class OffersService {
       const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...counterData } = counterOfferDto;
       const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
       const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
+
+      // Check for invalid dates
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      if (closingDate) {
+        if (isNaN(closingDate.getTime())) {
+          throw new BadRequestException('Invalid closing date format');
+        }
+        if (closingDate < now) {
+          throw new BadRequestException('Closing date cannot be in the past');
+        }
+      }
+
+      if (expirationDate) {
+        if (isNaN(expirationDate.getTime())) {
+          throw new BadRequestException('Invalid expiration date format');
+        }
+        if (expirationDate < now) {
+          throw new BadRequestException('Expiration date cannot be in the past');
+        }
+      }
+
+      if (closingDate && expirationDate && expirationDate <= closingDate) {
+        throw new BadRequestException('Expiration date must be further in time than the closing date');
+      }
 
       // 1. Update the existing offer with new counter data
       const updatedOffer = await tx.offer.update({

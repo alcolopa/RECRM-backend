@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, LeadStatus, PropertyStatus, ActivityType, ContactType, FinancingType, BuyingTimeline, DealStage } from '@prisma/client';
+import { PrismaClient, UserRole, LeadStatus, PropertyStatus, ActivityType, ContactType, FinancingType, BuyingTimeline, DealStage, Permission } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import 'dotenv/config';
@@ -9,6 +9,66 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('Start seeding...');
+
+  // 0. Create Global System Roles
+  console.log('Seeding global roles...');
+  const globalRoles = [
+    {
+      name: 'Owner',
+      description: 'Full system access',
+      permissions: Object.values(Permission),
+      isSystem: true,
+    },
+    {
+      name: 'Admin',
+      description: 'Full access to all features except billing',
+      permissions: Object.values(Permission).filter(p => p !== Permission.ORG_BILLING_VIEW),
+      isSystem: true,
+    },
+    {
+      name: 'Agent',
+      description: 'Manage leads, contacts, and properties',
+      permissions: [
+        Permission.LEADS_VIEW, Permission.LEADS_CREATE, Permission.LEADS_EDIT,
+        Permission.CONTACTS_VIEW, Permission.CONTACTS_CREATE, Permission.CONTACTS_EDIT,
+        Permission.PROPERTIES_VIEW, Permission.PROPERTIES_CREATE, Permission.PROPERTIES_EDIT,
+        Permission.DEALS_VIEW, Permission.DEALS_CREATE, Permission.DEALS_EDIT,
+        Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+      ],
+      isSystem: true,
+    },
+    {
+      name: 'Support',
+      description: 'View only access to most features',
+      permissions: [
+        Permission.LEADS_VIEW, Permission.CONTACTS_VIEW, Permission.PROPERTIES_VIEW, 
+        Permission.DEALS_VIEW, Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+      ],
+      isSystem: true,
+    }
+  ];
+
+  const createdRoles: Record<string, any> = {};
+  for (const roleData of globalRoles) {
+    let role = await prisma.customRole.findFirst({
+      where: { name: roleData.name, organizationId: null }
+    });
+
+    if (role) {
+      role = await prisma.customRole.update({
+        where: { id: role.id },
+        data: { permissions: roleData.permissions, description: roleData.description }
+      });
+    } else {
+      role = await prisma.customRole.create({
+        data: {
+          ...roleData,
+          organizationId: null,
+        },
+      });
+    }
+    createdRoles[roleData.name] = role;
+  }
 
   // 1. Create Admin User first (needed for Org owner)
   const adminEmail = 'admin@acme.com';
@@ -42,11 +102,12 @@ async function main() {
         organizationId: org.id,
       },
     },
-    update: { role: UserRole.OWNER },
+    update: { role: UserRole.OWNER, customRoleId: createdRoles['Owner'].id },
     create: {
       userId: admin.id,
       organizationId: org.id,
       role: UserRole.OWNER,
+      customRoleId: createdRoles['Owner'].id,
     },
   });
 
@@ -69,11 +130,12 @@ async function main() {
         organizationId: org.id,
       },
     },
-    update: { role: UserRole.AGENT },
+    update: { role: UserRole.AGENT, customRoleId: createdRoles['Agent'].id },
     create: {
       userId: agent.id,
       organizationId: org.id,
       role: UserRole.AGENT,
+      customRoleId: createdRoles['Agent'].id,
     },
   });
 

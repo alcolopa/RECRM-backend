@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsOptional, MinLength, IsObject } from 'class-validator';
+import { IsEmail, IsString, IsOptional, MinLength, IsObject, Matches } from 'class-validator';
 
 export class UpdateUserDto {
   @IsEmail()
@@ -6,8 +6,10 @@ export class UpdateUserDto {
   email?: string;
 
   @IsString()
-  @MinLength(6)
   @IsOptional()
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>])(?=.{8,})/, {
+    message: 'Password is too weak. It must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+  })
   password?: string;
 
   @IsString()

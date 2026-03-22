@@ -1,4 +1,4 @@
-import { Controller, Request, Post, UseGuards, Get, Body, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Controller, Request, Post, UseGuards, Get, Body, UnauthorizedException, ConflictException, Param, Patch, Delete, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { UsersService } from '../users/users.service';
@@ -7,6 +7,11 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UserRole } from '@prisma/client';
 import { UploadService } from '../upload/upload.service';
+import { OrganizationService } from '../organization/organization.service';
+import { EmailService } from '../email/email.service';
+
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -14,7 +19,15 @@ export class AuthController {
     private authService: AuthService,
     private usersService: UsersService,
     private uploadService: UploadService,
+    private organizationService: OrganizationService,
+    private emailService: EmailService,
   ) {}
+
+  @Get('check-slug/:slug')
+  async checkSlug(@Param('slug') slug: string) {
+    const org = await this.organizationService.findBySlug(slug);
+    return { available: !org };
+  }
 
   @Post('login')
   async login(@Body() body: LoginDto) {
@@ -25,54 +38,48 @@ export class AuthController {
     return this.authService.login(user);
   }
 
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body.token, body.newPassword);
+  }
+
+  @Get('invite/verify/:token')
+  async verifyInvite(@Param('token') token: string) {
+    return this.authService.verifyInvitation(token);
+  }
+
+  @Post('invite/accept')
+  @UseGuards(JwtAuthGuard)
+  async acceptInvite(@Body('token') token: string, @Request() req: any) {
+    return this.authService.acceptInvitation(token, req.user.userId);
+  }
+
+  @Post('invite/register')
+  async registerInvite(@Body() body: { token: string; userData: any }) {
+    return this.authService.registerWithInvitation(body.token, body.userData);
+  }
+
   @Post('register')
   async register(@Body() body: RegisterDto) {
-    // Check if user already exists
-    const existingUser = await this.usersService.findOne(body.email);
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
-
-    const hashedPassword = await bcrypt.hash(body.password, 10);
+    const { user, access_token } = await this.authService.register(body);
     
-    try {
-      const displayName = `${body.firstName} ${body.lastName}`;
+    const { password, ...userWithoutPassword } = user as any;
 
-      const user = await this.usersService.create({
-        email: body.email,
-        password: hashedPassword,
-        firstName: body.firstName,
-        lastName: body.lastName,
-        role: UserRole.OWNER, // Assign OWNER role to person creating organization
-        organization: {
-          create: {
-            name: body.organizationName || `${displayName}'s Organization`,
-            slug: body.organizationSlug || body.email.split('@')[0].toLowerCase() + '-' + Date.now().toString().slice(-4),
-          }
-        }
-      });
-
-      // Automatically login the user after registration
-      const { access_token } = await this.authService.login(user);
-      
-      const { password, ...userWithoutPassword } = user;
-
-      // Transform avatar key to URL
-      if (userWithoutPassword.avatar) {
-        userWithoutPassword.avatar = this.uploadService.getFileUrl(userWithoutPassword.avatar);
-      }
-
-      return {
-        user: userWithoutPassword,
-        access_token,
-      };
-    } catch (error: any) {
-      // Check for unique constraint violation on slug
-      if (error.code === 'P2002') {
-        throw new ConflictException('Organization slug already exists. Please provide a different one.');
-      }
-      throw error;
+    // Transform avatar key to URL
+    if (userWithoutPassword.avatar) {
+      userWithoutPassword.avatar = this.uploadService.getFileUrl(userWithoutPassword.avatar);
     }
+
+    return {
+      message: 'Registration successful.',
+      user: userWithoutPassword,
+      access_token,
+    };
   }
 
   @UseGuards(JwtAuthGuard)

@@ -22,6 +22,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from '../upload/upload.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Permissions } from '../auth/permissions.decorator';
+import { Permission } from '@prisma/client';
+import { PermissionsGuard } from '../auth/permissions.guard';
 
 @Controller('properties')
 export class PropertiesController {
@@ -49,7 +52,8 @@ export class PropertiesController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_CREATE)
   async create(@Body() createPropertyDto: CreatePropertyDto, @Request() req: any) {
     await this.verifyMembership(req.user.userId, createPropertyDto.organizationId);
     return this.propertiesService.create(createPropertyDto);
@@ -62,35 +66,40 @@ export class PropertiesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_VIEW)
   async findAll(@Request() req: any, @Query('organizationId') organizationId: string) {
     await this.verifyMembership(req.user.userId, organizationId);
     return this.propertiesService.findAll(organizationId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_VIEW)
   async findOne(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
     await this.verifyMembership(req.user.userId, organizationId);
     return this.propertiesService.findOne(id, organizationId);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_EDIT)
   async update(@Param('id') id: string, @Body() updatePropertyDto: UpdatePropertyDto, @Query('organizationId') organizationId: string, @Request() req: any) {
     await this.verifyMembership(req.user.userId, organizationId);
     return this.propertiesService.update(id, updatePropertyDto, organizationId);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_DELETE)
   async remove(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
     await this.verifyMembership(req.user.userId, organizationId);
     return this.propertiesService.remove(id, organizationId);
   }
 
   @Post(':id/images')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_EDIT)
   @UseInterceptors(FileInterceptor('file', {
     fileFilter: (req, file, cb) => {
       if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
@@ -124,7 +133,8 @@ export class PropertiesController {
   }
 
   @Delete('images/:imageId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(Permission.PROPERTIES_EDIT)
   async removeImage(@Param('imageId') imageId: string, @Query('organizationId') organizationId: string, @Request() req: any) {
     await this.verifyMembership(req.user.userId, organizationId);
     

@@ -1,0 +1,196 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
+
+@Injectable()
+export class EmailService {
+  private transporter: nodemailer.Transporter;
+  private readonly logger = new Logger(EmailService.name);
+
+  constructor(private configService: ConfigService) {
+    this.transporter = nodemailer.createTransport({
+      host: this.configService.get<string>('SMTP_HOST'),
+      port: this.configService.get<number>('SMTP_PORT'),
+      secure: this.configService.get<number>('SMTP_PORT') === 465, // true for 465, false for other ports
+      auth: {
+        user: this.configService.get<string>('SMTP_USER'),
+        pass: this.configService.get<string>('SMTP_PASS'),
+      },
+    });
+  }
+
+  async sendMail(to: string, subject: string, html: string) {
+    const from = this.configService.get<string>('SMTP_FROM') || 'noreply@estatehub.com';
+    
+    try {
+      const info = await this.transporter.sendMail({
+        from,
+        to,
+        subject,
+        html,
+      });
+      this.logger.log(`Email sent: ${info.messageId}`);
+      return info;
+    } catch (error: any) {
+      this.logger.error(`Error sending email: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async sendPasswordResetEmail(to: string, token: string) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+    
+    const subject = 'Reset Your EstateHub Password';
+    const html = `
+      <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="max-width: 600px; margin: 0 auto;">
+          <!-- Logo Header -->
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; width: 48px; height: 48px; background-color: #059669; border-radius: 12px; margin-bottom: 12px; line-height: 48px;">
+              <span style="color: white; font-size: 24px; font-weight: bold;">E</span>
+            </div>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.025em;">
+              Estate<span style="color: #059669;">Hub</span>
+            </h1>
+          </div>
+
+          <!-- Main Card -->
+          <div style="background-color: #ffffff; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center;">Reset your password</h2>
+            <p style="margin-bottom: 24px; color: #475569; font-size: 16px; line-height: 1.6; text-align: center;">
+              We received a request to reset the password for your EstateHub account. Click the button below to set a new password.
+            </p>
+            
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${resetLink}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none;">
+                Reset Password
+              </a>
+            </div>
+
+            <div style="padding: 16px; background-color: #f1f5f9; border-radius: 8px; margin-bottom: 24px;">
+              <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.5; text-align: center;">
+                <strong>Security Note:</strong> This link will expire in 15 minutes. If you didn't request this password reset, please ignore this email or contact support if you have concerns.
+              </p>
+            </div>
+            
+            <p style="margin: 0; color: #94a3b8; font-size: 14px; text-align: center;">
+              Questions? Reply to this email or visit our help center.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="text-align: center; margin-top: 32px;">
+            <p style="margin: 0; font-size: 14px; color: #94a3b8;">
+              &copy; 2026 EstateHub CRM. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return this.sendMail(to, subject, html);
+  }
+
+  async sendWelcomeEmail(to: string, name: string) {
+    const subject = 'Welcome to EstateHub CRM';
+    const html = `
+      <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="max-width: 600px; margin: 0 auto;">
+          <!-- Logo Header -->
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; width: 48px; height: 48px; background-color: #059669; border-radius: 12px; margin-bottom: 12px; line-height: 48px;">
+              <span style="color: white; font-size: 24px; font-weight: bold;">E</span>
+            </div>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.025em;">
+              Estate<span style="color: #059669;">Hub</span>
+            </h1>
+          </div>
+
+          <!-- Main Card -->
+          <div style="background-color: #ffffff; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center;">Welcome, ${name}!</h2>
+            <p style="margin-bottom: 24px; color: #475569; font-size: 16px; line-height: 1.6; text-align: center;">
+              We're excited to have you on board. EstateHub is designed to help you manage your leads, properties, and deals more effectively.
+            </p>
+            
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="http://localhost:5173" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none;">
+                Go to Dashboard
+              </a>
+            </div>
+
+            <p style="margin: 0; color: #94a3b8; font-size: 14px; text-align: center;">
+              If you have any questions, just reply to this email.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="text-align: center; margin-top: 32px;">
+            <p style="margin: 0; font-size: 14px; color: #94a3b8;">
+              &copy; 2026 EstateHub CRM. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return this.sendMail(to, subject, html);
+  }
+
+  async sendInvitationEmail(to: string, orgName: string, token: string, isNewUser: boolean) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const invitationLink = `${frontendUrl}/invite/${token}`;
+    
+    const subject = `You've been invited to join ${orgName} on EstateHub`;
+    const html = `
+      <div style="background-color: #f8fafc; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="max-width: 600px; margin: 0 auto;">
+          <!-- Logo Header -->
+          <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; width: 48px; height: 48px; background-color: #059669; border-radius: 12px; margin-bottom: 12px; line-height: 48px;">
+              <span style="color: white; font-size: 24px; font-weight: bold;">E</span>
+            </div>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.025em;">
+              Estate<span style="color: #059669;">Hub</span>
+            </h1>
+          </div>
+
+          <!-- Main Card -->
+          <div style="background-color: #ffffff; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center;">Join ${orgName}</h2>
+            <p style="margin-bottom: 24px; color: #475569; font-size: 16px; line-height: 1.6; text-align: center;">
+              You have been invited to join <strong>${orgName}</strong> on EstateHub CRM. 
+              ${isNewUser ? 'Create your account to get started.' : 'Click the button below to accept the invitation.'}
+            </p>
+            
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${invitationLink}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none;">
+                ${isNewUser ? 'Create Account & Join' : 'Accept Invitation'}
+              </a>
+            </div>
+
+            <div style="padding: 16px; background-color: #f1f5f9; border-radius: 8px; margin-bottom: 24px;">
+              <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.5; text-align: center;">
+                <strong>Security Note:</strong> This invitation will expire in 7 days. If you weren't expecting this invitation, you can safely ignore this email.
+              </p>
+            </div>
+            
+            <p style="margin: 0; color: #94a3b8; font-size: 14px; text-align: center;">
+              Questions? Reply to this email or visit our help center.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="text-align: center; margin-top: 32px;">
+            <p style="margin: 0; font-size: 14px; color: #94a3b8;">
+              &copy; 2026 EstateHub CRM. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return this.sendMail(to, subject, html);
+  }
+}
