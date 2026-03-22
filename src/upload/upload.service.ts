@@ -22,6 +22,11 @@ export class UploadService {
     
     this.logger.log(`Upload Service initialized. Destination: ${this.useS3 ? 'S3' : 'Local'}`);
     this.logger.log(`Public URL: ${this.publicUrl}`);
+
+    // Limit sharp memory usage
+    const sharpInstance = (sharp as any).default || sharp;
+    sharpInstance.cache(false);
+    sharpInstance.concurrency(1);
   }
 
   async uploadFile(file: Express.Multer.File, pathPrefix: string): Promise<string> {
