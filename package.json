@@ -6,7 +6,7 @@
   "scripts": {
     "build": "NODE_OPTIONS='--max-old-space-size=300' tsc -p tsconfig.json",
     "start": "NODE_OPTIONS='--max-old-space-size=300' node dist/main.js",
-    "start:dev": "NODE_OPTIONS='--max-old-space-size=300' ts-node-dev --respawn --transpile-only --no-compilation src/main.ts",
+    "start:dev": "NODE_OPTIONS='--max-old-space-size=300' ts-node-dev --respawn --transpile-only src/main.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "NODE_OPTIONS='--max-old-space-size=300' ts-node --transpile-only prisma/seed.ts",
@@ -27,6 +27,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
     "@nestjs/cli": "^11.0.16",
     "@nestjs/schematics": "^11.0.9",
     "@nestjs/testing": "^11.1.15",
