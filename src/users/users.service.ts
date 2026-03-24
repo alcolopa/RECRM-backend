@@ -7,6 +7,16 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  private userInclude = {
+    memberships: {
+      include: {
+        organization: true,
+        customRole: true
+      }
+    },
+    ownedOrganizations: true
+  };
+
   private DEFAULT_DASHBOARD_CONFIG = {
     lg: [
       { id: 'totalLeads', type: 'totalLeads', size: 'small', x: 0, y: 0, w: 3, h: 2, order: 0 },
@@ -58,45 +68,21 @@ export class UsersService {
   async findOne(email: string): Promise<any | null> {
     return this.prisma.user.findUnique({
       where: { email },
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-            customRole: true
-          }
-        },
-        ownedOrganizations: true
-      }
+      include: this.userInclude
     });
   }
 
   async findById(id: string): Promise<any | null> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-            customRole: true
-          }
-        },
-        ownedOrganizations: true
-      }
+      include: this.userInclude
     });
 
     if (user && !user.dashboardConfig) {
       return this.prisma.user.update({
         where: { id },
         data: { dashboardConfig: this.DEFAULT_DASHBOARD_CONFIG },
-        include: {
-          memberships: {
-            include: {
-              organization: true,
-              customRole: true
-            }
-          },
-          ownedOrganizations: true
-        }
+        include: this.userInclude
       });
     }
 
@@ -160,30 +146,14 @@ export class UsersService {
 
         return tx.user.findUnique({
           where: { id: user.id },
-          include: {
-            memberships: {
-              include: {
-                organization: true,
-                customRole: true
-              }
-            },
-            ownedOrganizations: true
-          }
+          include: this.userInclude
         }) as any;
       });
     }
 
     return this.prisma.user.create({
       data: initialData,
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-            customRole: true
-          }
-        },
-        ownedOrganizations: true
-      },
+      include: this.userInclude
     });
   }
 
@@ -224,15 +194,7 @@ export class UsersService {
       return await this.prisma.user.update({
         where: { id },
         data: updateData,
-        include: {
-          memberships: {
-            include: {
-              organization: true,
-              customRole: true
-            }
-          },
-          ownedOrganizations: true
-        }
+        include: this.userInclude
       });
     } catch (error) {
       throw error;
@@ -251,15 +213,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { completedTutorials },
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-            customRole: true
-          }
-        },
-        ownedOrganizations: true
-      }
+      include: this.userInclude
     });
   }
 
@@ -279,15 +233,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { completedTutorials: allTutorialIds },
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-            customRole: true
-          }
-        },
-        ownedOrganizations: true
-      }
+      include: this.userInclude
     });
   }
 }

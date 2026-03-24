@@ -7,34 +7,35 @@ datasource db {
 }
 
 model Organization {
-  id           String             @id @default(uuid())
-  name         String
-  slug         String             @unique
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  address      String?
-  email        String?
-  logo         String?
-  phone        String?
-  website      String?
-  ownerId      String
-  accentColor  String             @default("EMERALD")
-  defaultTheme OrganizationTheme  @default(LIGHT)
-  activities   Activity[]
-  contacts     Contact[]
-  customRoles  CustomRole[]
-  deals        Deal[]
-  files        File[]
-  invitations  Invitation[]
-  leads        Lead[]
-  memberships  Membership[]
-  notes        Note[]
-  offers       Offer[]
-  negotiations OfferNegotiation[]
-  owner        User               @relation("OrganizationOwner", fields: [ownerId], references: [id])
-  properties   Property[]
-  tags         Tag[]
-  tasks        Task[]
+  id             String             @id @default(uuid())
+  name           String
+  slug           String             @unique
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  address        String?
+  email          String?
+  logo           String?
+  phone          String?
+  website        String?
+  ownerId        String
+  accentColor    String             @default("EMERALD")
+  defaultTheme   OrganizationTheme  @default(LIGHT)
+  activities     Activity[]
+  calendarEvents CalendarEvent[]
+  contacts       Contact[]
+  customRoles    CustomRole[]
+  deals          Deal[]
+  files          File[]
+  invitations    Invitation[]
+  leads          Lead[]
+  memberships    Membership[]
+  notes          Note[]
+  offers         Offer[]
+  negotiations   OfferNegotiation[]
+  owner          User               @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  properties     Property[]
+  tags           Tag[]
+  tasks          Task[]
 
   @@index([id])
 }
@@ -56,6 +57,7 @@ model User {
   resetToken          String?
   resetTokenExpires   DateTime?
   createdActivities   Activity[]         @relation("CreatedBy")
+  calendarEvents      CalendarEvent[]    @relation("UserCalendar")
   assignedContacts    Contact[]          @relation("AssignedAgent")
   assignedDeals       Deal[]             @relation("AssignedUser")
   sentInvitations     Invitation[]       @relation("Inviter")
@@ -68,6 +70,7 @@ model User {
   ownedOrganizations  Organization[]     @relation("OrganizationOwner")
   assignedProperties  Property[]         @relation("PropertyAgent")
   assignedTasks       Task[]             @relation("AssignedUser")
+  createdTasks        Task[]             @relation("TaskCreator")
 
   @@index([email])
 }
@@ -77,6 +80,7 @@ model CustomRole {
   name           String
   description    String?
   permissions    Permission[]
+  level          Int           @default(1)
   isSystem       Boolean       @default(false)
   organizationId String?
   createdAt      DateTime      @default(now())
@@ -145,6 +149,7 @@ model Contact {
   lastContactedAt   DateTime?
   activities        Activity[]
   buyerProfile      BuyerProfile?
+  calendarEvents    CalendarEvent[]
   assignedAgent     User?              @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deals             Deal[]
@@ -221,6 +226,8 @@ model Lead {
   notes              String?
   preferredLocation  String?
   propertyType       PropertyType?
+  activities         Activity[]         @relation("LeadActivities")
+  calendarEvents     CalendarEvent[]
   tags               EntityTag[]
   assignedUser       User?              @relation("AssignedUser", fields: [assignedUserId], references: [id])
   convertedContact   Contact?           @relation("LeadToContact", fields: [convertedContactId], references: [id])
@@ -373,28 +380,60 @@ model Activity {
   createdById    String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  leadId         String?
   contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
   createdBy      User?        @relation("CreatedBy", fields: [createdById], references: [id])
+  lead           Lead?        @relation("LeadActivities", fields: [leadId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
 }
 
 model Task {
-  id             String       @id @default(uuid())
-  title          String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  dueDate        DateTime?
-  organizationId String
-  assignedUserId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  assignedUser   User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus     @default(TODO)
+  dueDate         DateTime?
+  organizationId  String
+  assignedUserId  String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdById     String?
+  priority        TaskPriority   @default(MEDIUM)
+  calendarEventId String?        @unique
+  assignedUser    User?          @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id])
+  createdBy       User?          @relation("TaskCreator", fields: [createdById], references: [id])
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([assignedUserId])
+  @@index([createdById])
+}
+
+model CalendarEvent {
+  id             String            @id @default(uuid())
+  title          String
+  description    String?
+  startTime      DateTime
+  endTime        DateTime
+  type           CalendarEventType @default(MEETING)
+  organizationId String
+  userId         String
+  contactId      String?
+  leadId         String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  contact        Contact?          @relation(fields: [contactId], references: [id])
+  lead           Lead?             @relation(fields: [leadId], references: [id])
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User              @relation("UserCalendar", fields: [userId], references: [id], onDelete: Cascade)
+  task           Task?
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([startTime, endTime])
 }
 
 model Note {
@@ -517,6 +556,30 @@ enum Permission {
   ORG_SETTINGS_EDIT
   ORG_BILLING_VIEW
   DASHBOARD_VIEW
+  TASKS_VIEW
+  TASKS_VIEW_ALL
+  TASKS_CREATE
+  TASKS_ASSIGN_ANY
+  TASKS_EDIT
+  TASKS_DELETE
+  CALENDAR_VIEW
+  CALENDAR_VIEW_ALL
+  CALENDAR_EDIT
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CalendarEventType {
+  MEETING
+  CALL
+  SITE_VISIT
+  BLOCKER
+  OTHER
 }
 
 enum UserRole {

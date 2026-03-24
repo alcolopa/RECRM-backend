@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { EmailService } from '../email/email.service';
 import * as crypto from 'crypto';
-import { Permission } from '@prisma/client';
+import { Permission, UserRole } from '@prisma/client';
 
 @Injectable()
 export class OrganizationService {
@@ -52,12 +52,14 @@ export class OrganizationService {
         name: 'Owner',
         description: 'Full system access',
         permissions: Object.values(Permission),
+        level: 4,
         isSystem: true,
       },
       {
         name: 'Admin',
         description: 'Full access to all features except billing',
         permissions: Object.values(Permission).filter(p => p !== Permission.ORG_BILLING_VIEW),
+        level: 3,
         isSystem: true,
       },
       {
@@ -68,8 +70,11 @@ export class OrganizationService {
           Permission.CONTACTS_VIEW, Permission.CONTACTS_CREATE, Permission.CONTACTS_EDIT,
           Permission.PROPERTIES_VIEW, Permission.PROPERTIES_CREATE, Permission.PROPERTIES_EDIT,
           Permission.DEALS_VIEW, Permission.DEALS_CREATE, Permission.DEALS_EDIT,
-          Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+          Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW,
+          Permission.TASKS_VIEW, Permission.TASKS_CREATE, Permission.TASKS_EDIT, Permission.TASKS_DELETE,
+          Permission.CALENDAR_VIEW, Permission.CALENDAR_EDIT
         ],
+        level: 2,
         isSystem: true,
       },
       {
@@ -77,8 +82,10 @@ export class OrganizationService {
         description: 'View only access to most features',
         permissions: [
           Permission.LEADS_VIEW, Permission.CONTACTS_VIEW, Permission.PROPERTIES_VIEW, 
-          Permission.DEALS_VIEW, Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+          Permission.DEALS_VIEW, Permission.TASKS_VIEW, Permission.CALENDAR_VIEW,
+          Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
         ],
+        level: 1,
         isSystem: true,
       }
     ];
@@ -95,12 +102,21 @@ export class OrganizationService {
             organizationId: null,
           }
         });
+      } else {
+        // Update permissions and level if needed
+        await this.prisma.customRole.update({
+          where: { id: existing.id },
+          data: {
+            permissions: roleData.permissions,
+            level: roleData.level,
+            description: roleData.description
+          }
+        });
       }
     }
   }
 
   async initializeDefaultRoles(organizationId: string) {
-    // Return the global Owner role for assignment
     return this.prisma.customRole.findFirst({
       where: { name: 'Owner', organizationId: null }
     });
@@ -116,12 +132,13 @@ export class OrganizationService {
       },
       orderBy: [
         { isSystem: 'desc' },
+        { level: 'desc' },
         { createdAt: 'asc' }
       ]
     });
   }
 
-  async createRole(orgId: string, userId: string, data: { name: string, description?: string, permissions: Permission[] }) {
+  async createRole(orgId: string, userId: string, data: { name: string, description?: string, permissions: Permission[], level: number }) {
     const org = await this.findById(orgId);
     if (org.ownerId !== userId) {
       throw new ForbiddenException('Only the owner can create roles');
@@ -135,7 +152,7 @@ export class OrganizationService {
     });
   }
 
-  async updateRole(orgId: string, userId: string, roleId: string, data: { name?: string, description?: string, permissions?: Permission[] }) {
+  async updateRole(orgId: string, userId: string, roleId: string, data: { name?: string, description?: string, permissions?: Permission[], level?: number }) {
     const org = await this.findById(orgId);
     if (org.ownerId !== userId) {
       throw new ForbiddenException('Only the owner can update roles');
@@ -164,12 +181,33 @@ export class OrganizationService {
 
     if (!role) throw new NotFoundException('Role not found');
     if (role.isSystem) throw new BadRequestException('System roles cannot be deleted');
-    if (role.memberships.length > 0 || role.invitations.length > 0) {
-      throw new BadRequestException('Cannot delete role that is assigned to members or invitations');
+
+    const supportRole = await this.prisma.customRole.findFirst({
+      where: { name: 'Support', organizationId: null }
+    });
+
+    if (!supportRole) {
+      throw new Error('System Support role not found. Please contact administrator.');
     }
 
-    return this.prisma.customRole.delete({
-      where: { id: roleId }
+    return await this.prisma.$transaction(async (tx) => {
+      if (role.memberships.length > 0) {
+        await tx.membership.updateMany({
+          where: { customRoleId: roleId },
+          data: { customRoleId: supportRole.id }
+        });
+      }
+
+      if (role.invitations.length > 0) {
+        await tx.invitation.updateMany({
+          where: { customRoleId: roleId },
+          data: { customRoleId: supportRole.id }
+        });
+      }
+
+      return tx.customRole.delete({
+        where: { id: roleId }
+      });
     });
   }
 
@@ -182,7 +220,6 @@ export class OrganizationService {
     const membership = await this.prisma.membership.findUnique({ where: { id: membershipId } });
     if (!membership || membership.organizationId !== orgId) throw new NotFoundException('Membership not found');
     
-    // Cannot change owner's role to something other than the Owner role
     if (membership.userId === org.ownerId) {
       const targetRole = await this.prisma.customRole.findUnique({ where: { id: customRoleId } });
       if (targetRole?.name !== 'Owner') {
@@ -198,13 +235,10 @@ export class OrganizationService {
 
   async createInvitation(orgId: string, inviterId: string, dto: CreateInvitationDto & { customRoleId?: string }) {
     const org = await this.findById(orgId);
-    
-    // 1. Verify inviter is the owner
     if (org.ownerId !== inviterId) {
       throw new ConflictException('Only the organization owner can invite members');
     }
 
-    // 2. Check if already a member
     const existingMember = await this.prisma.membership.findFirst({
       where: {
         organizationId: orgId,
@@ -216,7 +250,6 @@ export class OrganizationService {
       throw new ConflictException('User is already a member of this organization');
     }
 
-    // 3. Per-email throttle (60 seconds)
     const recentInvite = await this.prisma.invitation.findFirst({
       where: {
         organizationId: orgId,
@@ -231,7 +264,7 @@ export class OrganizationService {
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     const invitation = await this.prisma.invitation.create({
       data: {
@@ -248,7 +281,6 @@ export class OrganizationService {
       }
     });
 
-    // 4. Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email }
     });
@@ -264,7 +296,6 @@ export class OrganizationService {
   }
 
   async update(id: string, updateOrganizationDto: UpdateOrganizationDto) {
-    // If updating owner, verify new owner is already a member
     if (updateOrganizationDto.ownerId) {
       const membership = await this.prisma.membership.findUnique({
         where: {
@@ -325,7 +356,6 @@ export class OrganizationService {
       throw new NotFoundException('Invitation not found');
     }
 
-    // Per-email throttle (60 seconds)
     if (invitation.updatedAt > new Date(Date.now() - 60 * 1000)) {
       throw new BadRequestException('This invitation was recently resent. Please wait 60 seconds.');
     }
@@ -343,7 +373,6 @@ export class OrganizationService {
       }
     });
 
-    // Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { email: invitation.email }
     });

@@ -1,8 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
 import { PERMISSIONS_KEY } from './permissions.decorator';
 import { Permission } from '@prisma/client';
+import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -12,70 +13,105 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<Permission[]>(PERMISSIONS_KEY, [
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (isPublic) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest();
     const userId = request.user?.userId;
-    
-    // Improved organizationId detection
-    const organizationId = 
+
+    if (!userId) return false;
+
+    // 1. Detect Organization ID
+    // We prioritize explicit organizationId fields to avoid confusing entity IDs with org IDs
+    let organizationId = 
       request.query?.organizationId || 
       request.body?.organizationId || 
-      request.params?.organizationId ||
-      request.params?.id;
+      request.params?.organizationId;
 
-    if (!userId || !organizationId) {
-      // If we can't find an org ID, we can't check permissions
-      return false;
+    const controllerName = context.getClass().name;
+    const isOrgScopedController = [
+      'OrganizationController',
+      'LeadsController',
+      'ContactsController',
+      'PropertiesController',
+      'OffersController',
+      'TasksController',
+      'CalendarController',
+      'DashboardController'
+    ].includes(controllerName);
+
+    // Special handling for :id in OrganizationController
+    if (!organizationId && controllerName === 'OrganizationController' && request.params?.id) {
+      organizationId = request.params.id;
     }
 
-    const membership = await this.prisma.membership.findUnique({
-      where: {
-        userId_organizationId: {
-          userId,
-          organizationId,
+    // 2. If it's a scoped controller, we MUST have an organizationId
+    // Exception: global list routes might handle it internally (though currently we pass it)
+    if (isOrgScopedController && !organizationId && request.method !== 'GET') {
+        // For non-GET requests to scoped controllers, organizationId is usually mandatory
+        // For now, let's just log a warning if it's missing, but we'll try to find membership anyway
+    }
+
+    // 3. If we found an organizationId, we MUST verify membership immediately
+    if (organizationId) {
+      const membership = await this.prisma.membership.findUnique({
+        where: {
+          userId_organizationId: {
+            userId,
+            organizationId,
+          },
         },
-      },
-      include: {
-        customRole: true,
-      },
-    });
+        include: {
+          customRole: true,
+        },
+      });
 
-    if (!membership) {
-      throw new ForbiddenException('User is not a member of this organization');
-    }
+      if (!membership) {
+        throw new ForbiddenException('User is not a member of this organization');
+      }
 
-    // Organization owner has all permissions implicitly
-    const organization = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { ownerId: true }
-    });
+      // Store membership in request for use in controllers if needed
+      request.membership = membership;
+      request.organizationId = organizationId;
 
-    if (organization?.ownerId === userId) {
-      return true;
-    }
+      // 4. Check granular permissions if they are defined
+      const requiredPermissions = this.reflector.getAllAndOverride<Permission[]>(PERMISSIONS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
 
-    if (!membership.customRole) {
-      // Fallback for legacy members without custom roles
-      // For now, let's assume they have no granular permissions unless they have a custom role
-      // Or we can map UserRole enum to default permissions here
-      return false;
-    }
+      if (!requiredPermissions || requiredPermissions.length === 0) {
+        return true;
+      }
 
-    const userPermissions = membership.customRole.permissions;
-    const hasPermission = requiredPermissions.every((permission) =>
-      userPermissions.includes(permission),
-    );
+      // Organization owner has all permissions implicitly
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { ownerId: true }
+      });
 
-    if (!hasPermission) {
-      throw new ForbiddenException('You do not have the required permissions to perform this action');
+      if (organization?.ownerId === userId) {
+        return true;
+      }
+
+      if (!membership.customRole) {
+        // If required permissions are defined but user has no custom role, deny
+        return false;
+      }
+
+      const userPermissions = (membership.customRole.permissions as string[]) || [];
+      const hasPermission = requiredPermissions.every((permission) =>
+        userPermissions.includes(permission.toString()),
+      );
+
+      if (!hasPermission) {
+        throw new ForbiddenException('You do not have the required permissions to perform this action');
+      }
     }
 
     return true;

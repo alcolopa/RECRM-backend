@@ -11,18 +11,21 @@ import {
   UploadedFile, 
   BadRequestException,
   Param,
-  Delete 
+  Delete, 
+  Query
 } from '@nestjs/common';
 import { OrganizationService } from './organization.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
-import { UserRole } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from '../upload/upload.service';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { Permissions } from '../auth/permissions.decorator';
+import { Permission } from '@prisma/client';
 
 @Controller('organization')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrganizationController {
   constructor(
     private readonly organizationService: OrganizationService,
@@ -49,14 +52,12 @@ export class OrganizationController {
   }
 
   @Get()
-  async getOrganization(@Request() req: any) {
-    const orgId = req.query.organizationId || (await this.getDefaultOrgId(req.user.userId));
+  async getOrganization(@Request() req: any, @Query('organizationId') organizationId: string) {
+    const orgId = organizationId || (await this.getDefaultOrgId(req.user.userId));
     
     if (!orgId) {
       throw new BadRequestException('No organization found for this user');
     }
-
-    await this.verifyMembership(req.user.userId, orgId);
 
     const org = await this.organizationService.findById(orgId);
     
@@ -74,16 +75,15 @@ export class OrganizationController {
   }
 
   @Patch()
-  async update(@Request() req: any, @Body() updateOrganizationDto: UpdateOrganizationDto) {
-    const orgId = req.query.organizationId || (await this.getDefaultOrgId(req.user.userId));
+  @Permissions(Permission.ORG_SETTINGS_EDIT)
+  async update(@Request() req: any, @Body() updateOrganizationDto: UpdateOrganizationDto, @Query('organizationId') organizationId: string) {
+    const orgId = organizationId || (await this.getDefaultOrgId(req.user.userId));
     
     if (!orgId) {
       throw new BadRequestException('No organization found for this user');
     }
 
-    await this.verifyMembership(req.user.userId, orgId);
-
-    // Check if user is the owner of THIS specific organization
+    // Extra check for settings update
     const org = await this.organizationService.findById(orgId);
     if (org.ownerId !== req.user.userId) {
       throw new ForbiddenException('Only the organization owner can update settings');
@@ -105,6 +105,7 @@ export class OrganizationController {
   }
 
   @Post('logo')
+  @Permissions(Permission.ORG_SETTINGS_EDIT)
   @UseInterceptors(FileInterceptor('file', {
     fileFilter: (req, file, cb) => {
       if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
@@ -116,14 +117,12 @@ export class OrganizationController {
       fileSize: 2 * 1024 * 1024, // 2MB
     },
   }))
-  async uploadLogo(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
-    const orgId = req.query.organizationId || (await this.getDefaultOrgId(req.user.userId));
+  async uploadLogo(@Request() req: any, @UploadedFile() file: Express.Multer.File, @Query('organizationId') organizationId: string) {
+    const orgId = organizationId || (await this.getDefaultOrgId(req.user.userId));
     
     if (!orgId) {
       throw new BadRequestException('No organization found for this user');
     }
-
-    await this.verifyMembership(req.user.userId, orgId);
 
     const org = await this.organizationService.findById(orgId);
     if (org.ownerId !== req.user.userId) {
@@ -134,29 +133,26 @@ export class OrganizationController {
       throw new BadRequestException('File is required');
     }
 
-    // Upload using UploadService
     const key = await this.uploadService.uploadFile(file, `organizations/${orgId}/logos`);
-    
-    // Update organization with the key
     await this.organizationService.update(orgId, { logo: key });
-    
-    // Return the full URL
     const logoUrl = this.uploadService.getFileUrl(key);
     return { logo: logoUrl };
   }
 
   @Post(':id/invite')
+  @Permissions(Permission.TEAM_INVITE)
   async invite(@Param('id') id: string, @Request() req: any, @Body() dto: CreateInvitationDto) {
     return this.organizationService.createInvitation(id, req.user.userId, dto);
   }
 
   @Get(':id/invitations')
-  async getInvitations(@Param('id') id: string, @Request() req: any) {
-    await this.verifyMembership(req.user.userId, id);
+  @Permissions(Permission.TEAM_VIEW)
+  async getInvitations(@Param('id') id: string) {
     return this.organizationService.getInvitations(id);
   }
 
   @Delete(':id/invitations/:invitationId')
+  @Permissions(Permission.TEAM_INVITE)
   async cancelInvitation(
     @Param('id') id: string,
     @Param('invitationId') invitationId: string,
@@ -166,6 +162,7 @@ export class OrganizationController {
   }
 
   @Post(':id/invitations/:invitationId/resend')
+  @Permissions(Permission.TEAM_INVITE)
   async resendInvitation(
     @Param('id') id: string,
     @Param('invitationId') invitationId: string,
@@ -175,27 +172,31 @@ export class OrganizationController {
   }
 
   @Get(':id/roles')
-  async getRoles(@Param('id') id: string, @Request() req: any) {
-    await this.verifyMembership(req.user.userId, id);
+  @Permissions(Permission.TEAM_VIEW)
+  async getRoles(@Param('id') id: string) {
     return this.organizationService.getRoles(id);
   }
 
   @Post(':id/roles')
+  @Permissions(Permission.TEAM_EDIT_ROLES)
   async createRole(@Param('id') id: string, @Request() req: any, @Body() body: any) {
     return this.organizationService.createRole(id, req.user.userId, body);
   }
 
   @Patch(':id/roles/:roleId')
+  @Permissions(Permission.TEAM_EDIT_ROLES)
   async updateRole(@Param('id') id: string, @Param('roleId') roleId: string, @Request() req: any, @Body() body: any) {
     return this.organizationService.updateRole(id, req.user.userId, roleId, body);
   }
 
   @Delete(':id/roles/:roleId')
+  @Permissions(Permission.TEAM_EDIT_ROLES)
   async deleteRole(@Param('id') id: string, @Param('roleId') roleId: string, @Request() req: any) {
     return this.organizationService.deleteRole(id, req.user.userId, roleId);
   }
 
   @Patch(':id/members/:membershipId/role')
+  @Permissions(Permission.TEAM_EDIT_ROLES)
   async updateMemberRole(
     @Param('id') id: string, 
     @Param('membershipId') membershipId: string, 
@@ -203,15 +204,6 @@ export class OrganizationController {
     @Body('customRoleId') customRoleId: string
   ) {
     return this.organizationService.updateMemberRole(id, req.user.userId, membershipId, customRoleId);
-  }
-
-  private async verifyMembership(userId: string, organizationId: string) {
-    const membership = await this.organizationService['prisma'].membership.findUnique({
-      where: { userId_organizationId: { userId, organizationId } }
-    });
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this organization');
-    }
   }
 
   private async getDefaultOrgId(userId: string): Promise<string | null> {

@@ -56,7 +56,8 @@ async function main() {
       data: {
         name: 'Senior Broker',
         organizationId: org.id,
-        permissions: Object.values(Permission)
+        permissions: Object.values(Permission),
+        level: 2
       }
     });
 

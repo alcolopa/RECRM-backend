@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "Permission" ADD VALUE 'TASKS_ASSIGN_ANY';

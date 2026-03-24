@@ -17,24 +17,29 @@ async function main() {
       name: 'Owner',
       description: 'Full system access',
       permissions: Object.values(Permission),
+      level: 4,
       isSystem: true,
     },
     {
       name: 'Admin',
       description: 'Full access to all features except billing',
       permissions: Object.values(Permission).filter(p => p !== Permission.ORG_BILLING_VIEW),
+      level: 3,
       isSystem: true,
     },
     {
       name: 'Agent',
-      description: 'Manage leads, contacts, and properties',
+      description: 'Manage leads, contacts, properties, tasks and calendar',
       permissions: [
         Permission.LEADS_VIEW, Permission.LEADS_CREATE, Permission.LEADS_EDIT,
         Permission.CONTACTS_VIEW, Permission.CONTACTS_CREATE, Permission.CONTACTS_EDIT,
         Permission.PROPERTIES_VIEW, Permission.PROPERTIES_CREATE, Permission.PROPERTIES_EDIT,
         Permission.DEALS_VIEW, Permission.DEALS_CREATE, Permission.DEALS_EDIT,
+        Permission.TASKS_VIEW, Permission.TASKS_CREATE, Permission.TASKS_EDIT, Permission.TASKS_DELETE,
+        Permission.CALENDAR_VIEW, Permission.CALENDAR_EDIT,
         Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
       ],
+      level: 2,
       isSystem: true,
     },
     {
@@ -42,8 +47,10 @@ async function main() {
       description: 'View only access to most features',
       permissions: [
         Permission.LEADS_VIEW, Permission.CONTACTS_VIEW, Permission.PROPERTIES_VIEW, 
-        Permission.DEALS_VIEW, Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+        Permission.DEALS_VIEW, Permission.TASKS_VIEW, Permission.CALENDAR_VIEW,
+        Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
       ],
+      level: 1,
       isSystem: true,
     }
   ];
@@ -57,7 +64,11 @@ async function main() {
     if (role) {
       role = await prisma.customRole.update({
         where: { id: role.id },
-        data: { permissions: roleData.permissions, description: roleData.description }
+        data: { 
+          permissions: roleData.permissions, 
+          description: roleData.description,
+          level: roleData.level 
+        }
       });
     } else {
       role = await prisma.customRole.create({
