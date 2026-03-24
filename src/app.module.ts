@@ -15,6 +15,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { EmailModule } from './email/email.module';
 import { TasksModule } from './tasks/tasks.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { SearchModule } from './search/search.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -41,6 +42,7 @@ import { APP_GUARD } from '@nestjs/core';
     EmailModule,
     TasksModule,
     CalendarModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [
