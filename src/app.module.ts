@@ -11,6 +11,7 @@ import { UploadModule } from './upload/upload.module';
 import { OrganizationModule } from './organization/organization.module';
 import { OffersModule } from './offers/offers.module';
 import { LeadsModule } from './leads/leads.module';
+import { DealsModule } from './deals/deals.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EmailModule } from './email/email.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -38,6 +39,7 @@ import { APP_GUARD } from '@nestjs/core';
     OrganizationModule,
     OffersModule,
     LeadsModule,
+    DealsModule,
     DashboardModule,
     EmailModule,
     TasksModule,
