@@ -9,6 +9,50 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+const LUXURY_IMAGES = [
+  'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1600607687940-4e2a0969de22?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1600585154542-49da263e8b03?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=60'
+];
+
+const URBAN_IMAGES = [
+  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1449156001437-331016278897?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1522708323590-d248b6d0267d?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1469022563428-aa04fef9fbf1?auto=format&fit=crop&w=800&q=60'
+];
+
+const COMMERCIAL_IMAGES = [
+  'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1577412647305-991150c7d163?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1560179707-f14e90ef3623?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&w=800&q=60',
+  'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=800&q=60'
+];
+
+const LUXURY_TITLES = ["The Obsidian Villa", "Azure Coast Estate", "Marble Arch Manor", "Emerald Heights", "Silverwood Penthouse", "Golden Gate Mansion", "Royal Ivy Gardens", "Celestial View Peak"];
+const URBAN_TITLES = ["Brick & Mortar Lofts", "City Pulse Apartments", "Neon Square Studio", "The Metropolitan", "Skyline View Condo", "Union Station Quarter", "Liberty Heights", "Metro Central Tower"];
+const COMMERCIAL_TITLES = ["Nexus Business Park", "Summit Logistics Hub", "The Corner Plaza", "Harbor Industrial Center", "Main St Retail Collective", "Innovation Way Office", "Tech Boulevard", "Global Trade Center"];
+
+const FEATURES = [
+  "Smart Home System", "Security System", "Swimming Pool", "Solar Panels", "Gated Community",
+  "High Ceilings", "Private Garage", "Chef's Kitchen", "Wine Cellar", "Home Theater",
+  "Gym/Fitness Room", "Balcony/Terrace", "Landscaped Garden", "Central Air Conditioning",
+  "Hardwood Floors", "Walk-in Closet", "Electric Vehicle Charging", "Concierge Service"
+];
+
 async function main() {
   console.log('🔥 Initializing MEGA Test Seeder - Making the system alive...');
 
@@ -83,6 +127,18 @@ async function main() {
 
     const team = [owner, ...agents];
 
+    // 1.5 Create Features for the system if they don't exist
+    console.log(`   🛠️  Ensuring property features exist...`);
+    const featureRecords = await Promise.all(
+      FEATURES.map(name => 
+        prisma.feature.upsert({
+          where: { name },
+          update: {},
+          create: { name, category: 'Common' }
+        })
+      )
+    );
+
     // 2. Create Contacts & Profiles (50 per org)
     console.log(`   👥 Generating 50 active contacts for ${config.slug}...`);
     const contacts = await Promise.all(
@@ -137,14 +193,28 @@ async function main() {
     console.log(`   🏠 Listing 40 properties...`);
     const sellers = await prisma.sellerProfile.findMany({ where: { contact: { organizationId: org.id } } });
     const properties = await Promise.all(
-      Array.from({ length: 40 }).map(() => {
+      Array.from({ length: 40 }).map(async (_, index) => {
         const type = config.niche === 'commercial' 
           ? faker.helpers.arrayElement([PropertyType.COMMERCIAL, PropertyType.INDUSTRIAL, PropertyType.OFFICE, PropertyType.RETAIL])
           : faker.helpers.arrayElement([PropertyType.HOUSE, PropertyType.APARTMENT, PropertyType.VILLA, PropertyType.CONDO]);
         
-        return prisma.property.create({
+        let title = '';
+        let images: string[] = [];
+        
+        if (config.niche === 'luxury') {
+          title = LUXURY_TITLES[index % LUXURY_TITLES.length] + ' ' + (index > LUXURY_TITLES.length ? index : '');
+          images = LUXURY_IMAGES;
+        } else if (config.niche === 'commercial') {
+          title = COMMERCIAL_TITLES[index % COMMERCIAL_TITLES.length] + ' ' + (index > COMMERCIAL_TITLES.length ? index : '');
+          images = COMMERCIAL_IMAGES;
+        } else {
+          title = URBAN_TITLES[index % URBAN_TITLES.length] + ' ' + (index > URBAN_TITLES.length ? index : '');
+          images = URBAN_IMAGES;
+        }
+
+        const prop = await prisma.property.create({
           data: {
-            title: config.niche === 'luxury' ? `The ${faker.word.adjective()} ${faker.location.city()} Estate` : `${faker.location.street()} ${type}`,
+            title,
             description: faker.lorem.paragraphs(3),
             address: faker.location.streetAddress(),
             city: faker.location.city(),
@@ -152,15 +222,33 @@ async function main() {
             price: config.niche === 'luxury' ? faker.number.int({ min: 2000000, max: 15000000 }) : faker.number.int({ min: 200000, max: 900000 }),
             status: faker.helpers.arrayElement(Object.values(PropertyStatus)),
             type,
-            bedrooms: type === PropertyType.HOUSE ? faker.number.int({ min: 2, max: 8 }) : null,
-            bathrooms: type === PropertyType.HOUSE ? faker.number.int({ min: 1, max: 6 }) : null,
+            bedrooms: type === PropertyType.HOUSE || type === PropertyType.VILLA ? faker.number.int({ min: 2, max: 8 }) : (type === PropertyType.APARTMENT ? faker.number.int({ min: 1, max: 4 }) : null),
+            bathrooms: type === PropertyType.HOUSE || type === PropertyType.VILLA ? faker.number.int({ min: 1, max: 6 }) : (type === PropertyType.APARTMENT ? faker.number.int({ min: 1, max: 3 }) : null),
             area: faker.number.int({ min: 80, max: 2000 }),
-            features: faker.helpers.arrayElements(['Smart Home', 'Security System', 'Pool', 'Solar Panels', 'Gated', 'High Ceilings', 'Garage'], 4),
+            features: faker.helpers.arrayElements(FEATURES, 4),
             organizationId: org.id,
             sellerProfileId: faker.helpers.arrayElement(sellers).id,
             assignedUserId: faker.helpers.arrayElement(team).id,
           }
         });
+
+        // Add 3-5 images per property
+        const selectedImages = faker.helpers.arrayElements(images, faker.number.int({ min: 3, max: 5 }));
+        await Promise.all(selectedImages.map(url => 
+          prisma.propertyImage.create({
+            data: { url, propertyId: prop.id }
+          })
+        ));
+
+        // Add 3-6 property features
+        const selectedFeatures = faker.helpers.arrayElements(featureRecords, faker.number.int({ min: 3, max: 6 }));
+        await Promise.all(selectedFeatures.map(f => 
+          prisma.propertyFeature.create({
+            data: { featureId: f.id, propertyId: prop.id }
+          })
+        ));
+
+        return prop;
       })
     );
 

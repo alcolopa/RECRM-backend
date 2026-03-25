@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "NODE_OPTIONS='--max-old-space-size=300' ts-node --transpile-only prisma/seed.ts",
+    "db:test-seed": "NODE_OPTIONS='--max-old-space-size=300' ts-node --transpile-only prisma/test-seeder.ts",
     "db:setup": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
     "lint": "echo \"No linter configured yet\"",
     "test": "echo \"No tests configured yet\""
