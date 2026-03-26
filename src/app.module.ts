@@ -17,8 +17,10 @@ import { EmailModule } from './email/email.module';
 import { TasksModule } from './tasks/tasks.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { SearchModule } from './search/search.module';
+import { CommissionModule } from './commission/commission.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Module({
   imports: [
@@ -45,6 +47,8 @@ import { APP_GUARD } from '@nestjs/core';
     TasksModule,
     CalendarModule,
     SearchModule,
+    CommissionModule,
+    PayoutsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -235,6 +235,43 @@ async function main() {
     });
   }
 
+  // 7.5. Create Commission Config for the Organization
+  console.log('Seeding commission config...');
+  await prisma.commissionConfig.upsert({
+    where: { organizationId: org.id },
+    update: {
+      rentBuyerValue: 1.0,
+      rentBuyerType: 'MULTIPLIER',
+      rentSellerValue: 1.0,
+      rentSellerType: 'MULTIPLIER',
+      rentAgentValue: 40.0, // 40% of total (2 months) = 0.8 months (~80% of one month)
+      rentAgentType: 'PERCENTAGE',
+      saleBuyerValue: 2.5,
+      saleBuyerType: 'PERCENTAGE',
+      saleSellerValue: 2.5,
+      saleSellerType: 'PERCENTAGE',
+      saleAgentValue: 40.0, // 40% of total (5%) = 2% of price
+      saleAgentType: 'PERCENTAGE',
+      paymentTiming: 'UPFRONT',
+    },
+    create: {
+      organizationId: org.id,
+      rentBuyerValue: 1.0,
+      rentBuyerType: 'MULTIPLIER',
+      rentSellerValue: 1.0,
+      rentSellerType: 'MULTIPLIER',
+      rentAgentValue: 40.0,
+      rentAgentType: 'PERCENTAGE',
+      saleBuyerValue: 2.5,
+      saleBuyerType: 'PERCENTAGE',
+      saleSellerValue: 2.5,
+      saleSellerType: 'PERCENTAGE',
+      saleAgentValue: 40.0,
+      saleAgentType: 'PERCENTAGE',
+      paymentTiming: 'UPFRONT',
+    },
+  });
+
   // 8. Create Activity (Only if no activities exist for this contact yet to keep it simple)
   if (contact1) {
     const activityCount = await prisma.activity.count({

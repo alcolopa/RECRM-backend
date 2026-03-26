@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, Permission, ContactType, ContactStatus, LeadStatus, PropertyStatus, PropertyType, FinancingType, OfferStatus, ActivityType, TaskStatus, NegotiationStatus, ListingType, SellingTimeline, BuyingTimeline, PurchasePurpose, ReasonForSelling } from '@prisma/client';
+import { PrismaClient, UserRole, Permission, ContactType, ContactStatus, LeadStatus, PropertyStatus, PropertyType, FinancingType, OfferStatus, ActivityType, TaskStatus, NegotiationStatus, ListingType, SellingTimeline, BuyingTimeline, PurchasePurpose, ReasonForSelling, DealStage, DealType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
@@ -63,6 +63,27 @@ async function main() {
     { name: 'Metro Commercial & Industrial', slug: 'metro-comm', niche: 'commercial', color: 'INDIGO' }
   ];
 
+  console.log('🧹 Clearing existing test data...');
+  // Delete in order to respect constraints
+  await prisma.activity.deleteMany({});
+  await prisma.task.deleteMany({});
+  await prisma.deal.deleteMany({});
+  await prisma.offerHistory.deleteMany({});
+  await prisma.offer.deleteMany({});
+  await prisma.offerNegotiation.deleteMany({});
+  await prisma.propertyFeature.deleteMany({});
+  await prisma.propertyImage.deleteMany({});
+  await prisma.property.deleteMany({});
+  await prisma.buyerProfile.deleteMany({});
+  await prisma.sellerProfile.deleteMany({});
+  await prisma.contact.deleteMany({});
+  await prisma.lead.deleteMany({});
+  await prisma.membership.deleteMany({});
+  await prisma.customRole.deleteMany({});
+  await prisma.commissionConfig.deleteMany({});
+  await prisma.organization.deleteMany({});
+  await prisma.user.deleteMany({ where: { email: { contains: '@' } } }); // Clean up all seeded users
+
   for (const config of orgConfigs) {
     console.log(`\n🏢 Building Organization: ${config.name}...`);
 
@@ -93,6 +114,26 @@ async function main() {
 
     await prisma.membership.create({
       data: { userId: owner.id, organizationId: org.id, role: UserRole.OWNER }
+    });
+
+    // 1.2 Create Commission Config
+    await prisma.commissionConfig.create({
+      data: {
+        organizationId: org.id,
+        rentBuyerValue: 1.0,
+        rentBuyerType: 'MULTIPLIER',
+        rentSellerValue: 1.0,
+        rentSellerType: 'MULTIPLIER',
+        rentAgentValue: 40.0,
+        rentAgentType: 'PERCENTAGE',
+        saleBuyerValue: 2.5,
+        saleBuyerType: 'PERCENTAGE',
+        saleSellerValue: 2.5,
+        saleSellerType: 'PERCENTAGE',
+        saleAgentValue: 40.0,
+        saleAgentType: 'PERCENTAGE',
+        paymentTiming: 'UPFRONT',
+      }
     });
 
     // Custom Roles
@@ -350,6 +391,45 @@ async function main() {
           }
         });
       }
+    }
+
+    // 7. Create Deal Records (15 per org)
+    console.log(`   💰 Seeding 15 deals for ${config.slug}...`);
+    for (let i = 0; i < 15; i++) {
+      const prop = faker.helpers.arrayElement(properties);
+      const contact = faker.helpers.arrayElement(contacts);
+      const stage = faker.helpers.arrayElement(Object.values(DealStage));
+      const type = faker.helpers.arrayElement([DealType.SALE, DealType.RENT]);
+      
+      const value = type === DealType.SALE 
+        ? Number(prop.price) 
+        : Number(prop.price) / 100; // Mock rent as 1% of price
+
+      const isWon = stage === DealStage.CLOSED_WON;
+      
+      // Calculate mock commissions
+      const totalCommission = isWon ? value * 0.05 : 0;
+      const agentCommission = isWon ? totalCommission * 0.4 : 0;
+
+      await prisma.deal.create({
+        data: {
+          title: `${prop.title} - ${contact.firstName} ${contact.lastName}`,
+          organizationId: org.id,
+          propertyId: prop.id,
+          contactId: contact.id,
+          assignedUserId: faker.helpers.arrayElement(team).id,
+          stage,
+          type,
+          value: isWon ? value : null,
+          propertyPrice: type === DealType.SALE ? value : null,
+          rentPrice: type === DealType.RENT ? value : null,
+          totalCommission: isWon ? totalCommission : null,
+          agentCommission: agentCommission,
+          isAgentPaid: i < 3, // Mark first 3 deals as paid
+          agentPaidAt: i < 3 ? new Date() : null,
+          createdAt: faker.date.recent({ days: 120 }),
+        }
+      });
     }
   }
 

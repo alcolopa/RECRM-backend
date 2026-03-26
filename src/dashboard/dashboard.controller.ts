@@ -35,4 +35,10 @@ export class DashboardController {
   async getRecentActivities(@Request() req: any, @Query('organizationId') organizationId: string) {
     return this.dashboardService.getRecentActivities(organizationId);
   }
+
+  @Get('pipeline')
+  @Permissions(Permission.DASHBOARD_VIEW)
+  async getPipeline(@Request() req: any, @Query('organizationId') organizationId: string) {
+    return this.dashboardService.getPipelineData(organizationId);
+  }
 }

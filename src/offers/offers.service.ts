@@ -171,7 +171,7 @@ export class OffersService {
   }
 
   async create(createOfferDto: CreateOfferDto, user: any) {
-    const { propertyId, contactId, leadId, closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...offerData } = createOfferDto;
+    const { propertyId, contactId, leadId, closingDate: rawClosingDate, expirationDate: rawExpirationDate, type, buyerCommission, sellerCommission, agentCommission, ...offerData } = createOfferDto;
 
     // Clean up dates - convert empty strings or date strings to Date objects or null
     const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
@@ -259,6 +259,10 @@ export class OffersService {
           ...offerData,
           closingDate,
           expirationDate,
+          type: type || 'SALE',
+          buyerCommission,
+          sellerCommission,
+          agentCommission,
           status: offerData.status || OfferStatus.SUBMITTED,
           negotiation: { connect: { id: negotiation.id } },
           organization: { connect: { id: user.organizationId } },
@@ -306,7 +310,7 @@ export class OffersService {
     }
 
     return await this.prisma.$transaction(async (tx) => {
-      const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, ...counterData } = counterOfferDto;
+      const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, type, buyerCommission, sellerCommission, agentCommission, ...counterData } = counterOfferDto;
       const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
       const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
 
@@ -343,6 +347,10 @@ export class OffersService {
           ...counterData,
           closingDate,
           expirationDate,
+          type: type || originalOffer.type,
+          buyerCommission,
+          sellerCommission,
+          agentCommission,
           status: OfferStatus.COUNTERED,
         },
       });
@@ -415,10 +423,26 @@ export class OffersService {
           contactId: offer.negotiation.contactId,
           propertyId: offer.negotiation.propertyId,
           assignedUserId: offer.createdById,
+          type: offer.type,
+          propertyPrice: offer.type === 'SALE' ? offer.price : null,
+          rentPrice: offer.type === 'RENT' ? offer.price : null,
         },
       });
 
-      // 4. Create history
+      // 4. Create Deal Commission Override if specific values were captured during negotiation
+      if (offer.buyerCommission || offer.sellerCommission || offer.agentCommission) {
+        await tx.dealCommissionOverride.create({
+          data: {
+            dealId: deal.id,
+            buyerCommission: offer.buyerCommission,
+            sellerCommission: offer.sellerCommission,
+            agentCommission: offer.agentCommission,
+            notes: 'Transferred from accepted offer manual overrides',
+          },
+        });
+      }
+
+      // 5. Create history
       await tx.offerHistory.create({
         data: {
           offerId: id,

@@ -1,5 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsDateString, IsUUID } from 'class-validator';
-import { FinancingType, OfferStatus, OffererType } from '@prisma/client';
+import { FinancingType, OfferStatus, OffererType, DealType } from '@prisma/client';
 
 export class CreateOfferDto {
   @IsUUID()
@@ -45,6 +45,22 @@ export class CreateOfferDto {
   @IsEnum(OfferStatus)
   @IsOptional()
   status?: OfferStatus;
+
+  @IsEnum(DealType)
+  @IsOptional()
+  type?: DealType;
+
+  @IsNumber()
+  @IsOptional()
+  buyerCommission?: number;
+
+  @IsNumber()
+  @IsOptional()
+  sellerCommission?: number;
+
+  @IsNumber()
+  @IsOptional()
+  agentCommission?: number;
 }
 
 export class CounterOfferDto {
@@ -79,6 +95,22 @@ export class CounterOfferDto {
   @IsString()
   @IsOptional()
   organizationId?: string;
+
+  @IsEnum(DealType)
+  @IsOptional()
+  type?: DealType;
+
+  @IsNumber()
+  @IsOptional()
+  buyerCommission?: number;
+
+  @IsNumber()
+  @IsOptional()
+  sellerCommission?: number;
+
+  @IsNumber()
+  @IsOptional()
+  agentCommission?: number;
 }
 
 export class UpdateOfferDto {
@@ -117,4 +149,20 @@ export class UpdateOfferDto {
   @IsString()
   @IsOptional()
   organizationId?: string;
+
+  @IsEnum(DealType)
+  @IsOptional()
+  type?: DealType;
+
+  @IsNumber()
+  @IsOptional()
+  buyerCommission?: number;
+
+  @IsNumber()
+  @IsOptional()
+  sellerCommission?: number;
+
+  @IsNumber()
+  @IsOptional()
+  agentCommission?: number;
 }

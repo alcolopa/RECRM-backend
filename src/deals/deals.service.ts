@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDealDto, UpdateDealDto } from './dto/deal.dto';
 import { DealStage } from '@prisma/client';
+import { CommissionResolverService } from '../commission/commission-resolver.service';
 
 @Injectable()
 export class DealsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private commissionResolver: CommissionResolverService,
+  ) {}
 
   async findAll(organizationId: string) {
     return this.prisma.deal.findMany({
@@ -13,6 +17,7 @@ export class DealsService {
       include: {
         contact: true,
         property: true,
+        commissionOverride: true,
         assignedUser: {
           select: { id: true, firstName: true, lastName: true, email: true, avatar: true }
         }
@@ -27,6 +32,7 @@ export class DealsService {
       include: {
         contact: true,
         property: true,
+        commissionOverride: true,
         assignedUser: {
           select: { id: true, firstName: true, lastName: true, email: true, avatar: true }
         }
@@ -41,7 +47,7 @@ export class DealsService {
   }
 
   async create(createDealDto: CreateDealDto, organizationId: string) {
-    return this.prisma.deal.create({
+    const deal = await this.prisma.deal.create({
       data: {
         ...createDealDto,
         organizationId,
@@ -51,19 +57,21 @@ export class DealsService {
         property: true
       }
     });
+
+    await this.commissionResolver.resolveCommission(deal.id);
+    return this.findOne(deal.id, organizationId);
   }
 
   async update(id: string, updateDealDto: UpdateDealDto, organizationId: string) {
-    const deal = await this.findOne(id, organizationId);
+    await this.findOne(id, organizationId);
     
-    return this.prisma.deal.update({
+    await this.prisma.deal.update({
       where: { id },
       data: updateDealDto,
-      include: {
-        contact: true,
-        property: true
-      }
     });
+
+    await this.commissionResolver.resolveCommission(id);
+    return this.findOne(id, organizationId);
   }
 
   async remove(id: string, organizationId: string) {

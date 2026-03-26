@@ -33,8 +33,37 @@ export class DashboardService {
       { label: 'Total Leads', value: totalLeads.toLocaleString(), change: '+12.5%', trend: 'up' },
       { label: 'Properties', value: totalProperties.toLocaleString(), change: '+3.2%', trend: 'up' },
       { label: 'Active Offers', value: activeOffers.toLocaleString(), change: '+5.4%', trend: 'up' },
-      { label: 'Revenue', value: `$${((totalRevenue._sum.value as any) || 0).toLocaleString()}`, change: '+18.7%', trend: 'up' },
+      { label: 'Total Revenue', value: `$${((totalRevenue._sum.value as any) || 0).toLocaleString()}`, change: '+18.7%', trend: 'up' },
     ];
+  }
+
+  async getPipelineData(organizationId: string) {
+    const deals = await this.prisma.deal.findMany({
+      where: { organizationId },
+      select: {
+        stage: true,
+        value: true
+      }
+    });
+
+    const stages = [
+      { key: 'DISCOVERY', label: 'Discovery' },
+      { key: 'QUALIFICATION', label: 'Qualification' },
+      { key: 'PRESENTATION', label: 'Presentation' },
+      { key: 'NEGOTIATION', label: 'Negotiation' },
+      { key: 'CLOSED_WON', label: 'Closed Won' },
+      { key: 'CLOSED_LOST', label: 'Closed Lost' }
+    ];
+
+    return stages.map(stage => {
+      const stageDeals = deals.filter(d => d.stage === stage.key);
+      const totalValue = stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+      return {
+        stage: stage.label,
+        count: stageDeals.length,
+        value: totalValue
+      };
+    });
   }
 
   async getRecentLeads(organizationId: string) {

@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsEnum, IsNumber, IsUUID } from 'class-validator';
-import { DealStage } from '@prisma/client';
+import { DealStage, DealType } from '@prisma/client';
 
 export class CreateDealDto {
   @IsString()
@@ -24,6 +24,18 @@ export class CreateDealDto {
   @IsUUID()
   @IsOptional()
   assignedUserId?: string;
+
+  @IsEnum(DealType)
+  @IsOptional()
+  type?: DealType;
+
+  @IsNumber()
+  @IsOptional()
+  propertyPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  rentPrice?: number;
 }
 
 export class UpdateDealDto {
@@ -50,4 +62,16 @@ export class UpdateDealDto {
   @IsUUID()
   @IsOptional()
   assignedUserId?: string;
+
+  @IsEnum(DealType)
+  @IsOptional()
+  type?: DealType;
+
+  @IsNumber()
+  @IsOptional()
+  propertyPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  rentPrice?: number;
 }

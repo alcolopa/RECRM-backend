@@ -36,6 +36,7 @@ model Organization {
   properties     Property[]
   tags           Tag[]
   tasks          Task[]
+  commissionConfig CommissionConfig?
 
   @@index([id])
 }
@@ -71,6 +72,7 @@ model User {
   assignedProperties  Property[]         @relation("PropertyAgent")
   assignedTasks       Task[]             @relation("AssignedUser")
   createdTasks        Task[]             @relation("TaskCreator")
+  agentCommissionConfig AgentCommissionConfig?
 
   @@index([email])
 }
@@ -323,6 +325,12 @@ model Offer {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   offerer        OffererType      @default(BUYER)
+  type           DealType         @default(SALE)
+  
+  buyerCommission  Decimal?
+  sellerCommission Decimal?
+  agentCommission  Decimal?
+  
   createdBy      User             @relation("CreatedBy", fields: [createdById], references: [id])
   negotiation    OfferNegotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -365,6 +373,18 @@ model Deal {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   property       Property?    @relation(fields: [propertyId], references: [id])
   tags           EntityTag[]
+
+  type              DealType @default(SALE)
+  propertyPrice     Decimal?
+  rentPrice         Decimal?
+  buyerCommission   Decimal?
+  sellerCommission  Decimal?
+  totalCommission   Decimal?
+  agentCommission   Decimal?
+  isAgentPaid       Boolean   @default(false)
+  agentPaidAt       DateTime?
+
+  commissionOverride DealCommissionOverride?
 
   @@index([organizationId])
   @@index([assignedUserId])
@@ -524,6 +544,73 @@ model PropertyFeature {
   @@index([featureId])
 }
 
+model CommissionConfig {
+  id                    String   @id @default(uuid())
+  organizationId        String   @unique
+
+  // RENT
+  rentBuyerValue        Float?
+  rentBuyerType         CommissionType @default(MULTIPLIER)
+  rentSellerValue       Float?
+  rentSellerType        CommissionType @default(MULTIPLIER)
+  rentAgentValue        Float?
+  rentAgentType         CommissionType @default(PERCENTAGE)
+
+  // SALE
+  saleBuyerValue        Float?
+  saleBuyerType         CommissionType @default(PERCENTAGE)
+  saleSellerValue       Float?
+  saleSellerType        CommissionType @default(PERCENTAGE)
+  saleAgentValue        Float?
+  saleAgentType         CommissionType @default(PERCENTAGE)
+
+  paymentTiming         String?
+  paymentMethod         String?
+
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model AgentCommissionConfig {
+  id                    String   @id @default(uuid())
+  agentId               String   @unique
+
+  // RENT overrides
+  rentAgentValue        Float?
+  rentAgentType         CommissionType?
+
+  // SALE overrides
+  saleAgentValue        Float?
+  saleAgentType         CommissionType?
+
+  monthlyTarget         Decimal?
+
+  agent                 User @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model DealCommissionOverride {
+  id                    String   @id @default(uuid())
+  dealId                String   @unique
+
+  buyerCommission       Decimal?
+  sellerCommission      Decimal?
+  agentCommission       Decimal?
+
+  notes                 String?
+
+  deal                  Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FIXED
+  MULTIPLIER
+}
+
+enum DealType {
+  SALE
+  RENT
+}
+
 enum InvitationStatus {
   PENDING
   ACCEPTED
@@ -556,6 +643,8 @@ enum Permission {
   ORG_SETTINGS_EDIT
   ORG_BILLING_VIEW
   DASHBOARD_VIEW
+  PAYOUTS_VIEW
+  PAYOUTS_MANAGE
   TASKS_VIEW
   TASKS_VIEW_ALL
   TASKS_CREATE
