@@ -43,9 +43,11 @@ UPDATE "Lead" SET "propertyType" = 'OFFICE' WHERE "propertyType" IN ('COMMERCIAL
 -- Step 2: Create new enum, migrate columns, drop old enum
 CREATE TYPE "PropertyType_new" AS ENUM ('APARTMENT', 'HOUSE', 'VILLA', 'OFFICE', 'SHOP', 'LAND', 'WAREHOUSE', 'BUILDING');
 
+ALTER TABLE "Property" ALTER COLUMN "type" DROP DEFAULT;
 ALTER TABLE "Property" ALTER COLUMN "type" TYPE "PropertyType_new" USING "type"::text::"PropertyType_new";
 ALTER TABLE "Property" ALTER COLUMN "type" SET DEFAULT 'HOUSE';
 
+ALTER TABLE "BuyerProfile" ALTER COLUMN "propertyTypes" DROP DEFAULT;
 ALTER TABLE "BuyerProfile" ALTER COLUMN "propertyTypes" TYPE "PropertyType_new"[] USING "propertyTypes"::text::"PropertyType_new"[];
 ALTER TABLE "BuyerProfile" ALTER COLUMN "propertyTypes" SET DEFAULT ARRAY[]::"PropertyType_new"[];
 
