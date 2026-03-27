@@ -236,8 +236,8 @@ async function main() {
     const properties = await Promise.all(
       Array.from({ length: 40 }).map(async (_, index) => {
         const type = config.niche === 'commercial' 
-          ? faker.helpers.arrayElement([PropertyType.COMMERCIAL, PropertyType.INDUSTRIAL, PropertyType.OFFICE, PropertyType.RETAIL])
-          : faker.helpers.arrayElement([PropertyType.HOUSE, PropertyType.APARTMENT, PropertyType.VILLA, PropertyType.CONDO]);
+          ? faker.helpers.arrayElement([PropertyType.OFFICE, PropertyType.SHOP, PropertyType.WAREHOUSE, PropertyType.BUILDING])
+          : faker.helpers.arrayElement([PropertyType.HOUSE, PropertyType.APARTMENT, PropertyType.VILLA]);
         
         let title = '';
         let images: string[] = [];

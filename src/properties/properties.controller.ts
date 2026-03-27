@@ -58,6 +58,11 @@ export class PropertiesController {
     @Query('organizationId') organizationId: string,
     @Query('assignedUserId') assignedUserId?: string,
     @Query('status') status?: string,
+    @Query('listingType') listingType?: string,
+    @Query('type') type?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('bedrooms') bedrooms?: string,
     @Query() paginationDto?: PaginationDto,
   ) {
     return this.propertiesService.findAll(organizationId, {
@@ -65,7 +70,15 @@ export class PropertiesController {
       take: paginationDto?.limit,
       sortBy: paginationDto?.sortBy,
       sortOrder: paginationDto?.sortOrder,
-    }, { assignedUserId, status });
+    }, {
+      assignedUserId,
+      status,
+      listingType,
+      type,
+      minPrice: minPrice ? Number(minPrice) : undefined,
+      maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      bedrooms: bedrooms ? Number(bedrooms) : undefined,
+    });
   }
 
   @Get(':id')

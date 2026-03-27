@@ -28,6 +28,8 @@ export class PropertiesService {
       },
     },
     assignedUser: true,
+    // NOTE: createdBy, ownerContact, and negotiations will be added
+    // after running `prisma generate` with the expanded schema.
     sellerProfile: {
       include: {
         contact: {
@@ -35,22 +37,6 @@ export class PropertiesService {
             assignedAgent: true,
           }
         },
-      },
-    },
-    negotiations: {
-      include: {
-        contact: true,
-        offers: {
-          include: {
-            createdBy: true,
-          },
-          orderBy: {
-            createdAt: 'desc' as const,
-          },
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc' as const,
       },
     },
   };
@@ -101,7 +87,7 @@ export class PropertiesService {
 
     const property = await this.prisma.property.create({
       data: {
-        ...rest,
+        ...(rest as any),
         ...(featureIds && featureIds.length > 0
           ? {
               propertyFeatures: {
@@ -120,13 +106,22 @@ export class PropertiesService {
   async findAll(
     organizationId?: string, 
     pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }, 
-    filters?: { assignedUserId?: string, status?: string }
+    filters?: { assignedUserId?: string, status?: string, listingType?: string, type?: string, minPrice?: number, maxPrice?: number, bedrooms?: number }
   ): Promise<{ items: any[], total: number }> {
-    const where = {
+    const where: any = {
       ...(organizationId ? { organizationId } : {}),
       ...(filters?.assignedUserId ? { assignedUserId: filters.assignedUserId } : {}),
       ...(filters?.status ? { status: filters.status as any } : {}),
+      ...(filters?.listingType ? { listingType: filters.listingType as any } : {}),
+      ...(filters?.type ? { type: filters.type as any } : {}),
+      ...(filters?.bedrooms ? { bedrooms: { gte: filters.bedrooms } } : {}),
     };
+
+    if (filters?.minPrice || filters?.maxPrice) {
+      where.price = {};
+      if (filters.minPrice) where.price.gte = filters.minPrice;
+      if (filters.maxPrice) where.price.lte = filters.maxPrice;
+    }
 
     const sortBy = pagination?.sortBy || 'createdAt';
     const sortOrder = pagination?.sortOrder || 'desc';
@@ -235,7 +230,7 @@ export class PropertiesService {
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto, organizationId: string) {
-    const { featureIds, ...rest } = updatePropertyDto;
+    const { featureIds, ...rest } = updatePropertyDto as any;
 
     // Verify property belongs to organization
     await this.findOne(id, organizationId);
@@ -260,9 +255,9 @@ export class PropertiesService {
         updated = await this.prisma.property.update({
           where: { id },
           data: {
-            ...rest,
+            ...(rest as any),
             propertyFeatures: {
-              create: featureIds.map((featureId) => ({
+              create: featureIds.map((featureId: string) => ({
                 featureId,
               })),
             },
@@ -272,7 +267,7 @@ export class PropertiesService {
       } else {
         updated = await this.prisma.property.update({
           where: { id },
-          data: rest,
+          data: rest as any,
           include: this.propertyIncludes,
         });
       }

@@ -70,6 +70,7 @@ model User {
   createdNegotiations OfferNegotiation[] @relation("CreatedBy")
   ownedOrganizations  Organization[]     @relation("OrganizationOwner")
   assignedProperties  Property[]         @relation("PropertyAgent")
+  createdProperties   Property[]         @relation("PropertyCreatedBy")
   assignedTasks       Task[]             @relation("AssignedUser")
   createdTasks        Task[]             @relation("TaskCreator")
   agentCommissionConfig AgentCommissionConfig?
@@ -159,6 +160,7 @@ model Contact {
   convertedFromLead Lead?              @relation("LeadToContact")
   contactNotes      Note[]             @relation("ContactNotes")
   negotiations      OfferNegotiation[]
+  ownedProperties   Property[]         @relation("PropertyOwner")
   sellerProfile     SellerProfile?
 
   @@index([organizationId])
@@ -243,38 +245,122 @@ model Lead {
 
 model Property {
   id               String             @id @default(uuid())
+  organizationId   String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  // --- 1. Core Info ---
   title            String
   description      String?
+  type             PropertyType       @default(HOUSE)
+  listingType      PropertyListingType?
+  status           PropertyStatus     @default(AVAILABLE)
+  referenceCode    String?            @unique
+  createdById      String?
+
+  // --- 2. Location ---
   address          String
+  country          String?
   city             String?
   state            String?
+  governorate      String?
+  district         String?
+  street           String?
+  buildingName     String?
+  floor            String?
+  unitNumber       String?
   zipCode          String?
-  price            Decimal?
-  status           PropertyStatus     @default(AVAILABLE)
-  type             PropertyType       @default(HOUSE)
+  latitude         Float?
+  longitude        Float?
+
+  // --- 3. Property Specifications ---
+  sizeSqm          Float?
+  landSizeSqm      Float?
   bedrooms         Int?
   bathrooms        Float?
   area             Float?
   lotSize          Float?
+  livingRooms      Int?
+  kitchens         Int?
+  parkingSpaces    Int?
+  floorNumber      Int?
+  totalFloors      Int?
   yearBuilt        Int?
+  condition        PropertyCondition?
+  furnished        Boolean?           @default(false)
+
+  // --- 4. Pricing & Financials (Common) ---
+  price            Decimal?
+  currency         String?            @default("USD")
+  negotiable       Boolean?           @default(false)
+
+  // Pricing (Sale)
+  pricePerSqm              Decimal?
+  commissionBuyerPercent   Float?
+  commissionSellerPercent  Float?
+  paymentTerms             Json?
+
+  // Pricing (Rent)
+  rentalPeriod             RentalPeriod?
+  rentAmount               Decimal?
+  paymentFrequency         PaymentFrequency?
+  advancePaymentMonths     Int?
+  securityDeposit          Decimal?
+  minLeaseDurationMonths   Int?
+  maxLeaseDurationMonths   Int?
+  utilitiesIncluded        Boolean?       @default(false)
+  availableFrom            DateTime?
+  renewalTerms             String?
+
+  // Pricing (Lease / Commercial)
+  leaseTermYears           Int?
+  rentEscalation           String?
+  fitOutPeriod             String?
+  serviceCharges           Decimal?
+  insuranceRequired        Boolean?       @default(false)
+  maintenanceResponsibility MaintenanceResponsibility?
+
+  // --- 5. Legal & Ownership ---
+  ownerName                String?
+  ownerContactId           String?
+  ownershipType            OwnershipType?
+  titleDeedAvailable       Boolean?       @default(false)
+  zoningType               ZoningType?
+  legalNotes               String?
+
+  // --- 6. Features ---
   features         String[]
-  organizationId   String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  sellerProfileId  String?
-  country          String?
-  governorate      String?
+
+  // --- 7. CRM Fields ---
   assignedUserId   String?
+  sellerProfileId  String?
+  source           PropertySource?
+  listingDate      DateTime?
+  expiryDate       DateTime?
+  priority         PropertyPriority?
+  propertyTags     String[]           @default([])
+
+  // --- 8. Activity Tracking ---
+  viewsCount       Int                @default(0)
+  inquiriesCount   Int                @default(0)
+  lastViewedAt     DateTime?
+
+  // --- Relations ---
   deals            Deal[]
   tags             EntityTag[]
   negotiations     OfferNegotiation[]
   assignedUser     User?              @relation("PropertyAgent", fields: [assignedUserId], references: [id])
+  createdBy        User?              @relation("PropertyCreatedBy", fields: [createdById], references: [id])
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sellerProfile    SellerProfile?     @relation("SellerProperty", fields: [sellerProfileId], references: [id])
+  ownerContact     Contact?           @relation("PropertyOwner", fields: [ownerContactId], references: [id])
   propertyFeatures PropertyFeature[]
   propertyImages   PropertyImage[]
 
   @@index([organizationId])
+  @@index([referenceCode])
+  @@index([listingType])
+  @@index([status])
 }
 
 model PropertyImage {
@@ -775,7 +861,7 @@ enum DealStage {
 
 enum PropertyStatus {
   AVAILABLE
-  UNDER_CONTRACT
+  RESERVED
   SOLD
   RENTED
   OFF_MARKET
@@ -785,13 +871,67 @@ enum PropertyType {
   APARTMENT
   HOUSE
   VILLA
-  LAND
-  COMMERCIAL
   OFFICE
-  RETAIL
-  CONDO
-  TOWNHOUSE
-  INDUSTRIAL
+  SHOP
+  LAND
+  WAREHOUSE
+  BUILDING
+}
+
+enum PropertyListingType {
+  SALE
+  RENT
+  LEASE
+}
+
+enum PropertyCondition {
+  NEW
+  GOOD
+  NEEDS_RENOVATION
+  UNDER_CONSTRUCTION
+}
+
+enum OwnershipType {
+  FREEHOLD
+  LEASEHOLD
+}
+
+enum ZoningType {
+  RESIDENTIAL
+  COMMERCIAL
+  MIXED
+}
+
+enum RentalPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum PaymentFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum MaintenanceResponsibility {
+  OWNER
+  TENANT
+  SHARED
+}
+
+enum PropertySource {
+  MANUAL
+  WEBSITE
+  WHATSAPP
+  REFERRAL
+}
+
+enum PropertyPriority {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum TaskStatus {

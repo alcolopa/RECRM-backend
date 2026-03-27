@@ -156,4 +156,19 @@ export class PayoutsService {
       }
     });
   }
+
+  async markSelectedAsPaid(dealIds: string[], organizationId: string) {
+    return this.prisma.deal.updateMany({
+      where: {
+        id: { in: dealIds },
+        organizationId,
+        stage: DealStage.CLOSED_WON,
+        isAgentPaid: false
+      },
+      data: {
+        isAgentPaid: true,
+        agentPaidAt: new Date()
+      }
+    });
+  }
 }

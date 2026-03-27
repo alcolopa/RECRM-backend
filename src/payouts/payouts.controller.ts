@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, UseGuards, Request } from '@nestjs/common';
 import { PayoutsService } from './payouts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
@@ -47,5 +47,14 @@ export class PayoutsController {
     @Query('organizationId') organizationId: string
   ) {
     return this.payoutsService.markAllAsPaid(agentId, organizationId);
+  }
+
+  @Post('mark-selected-paid')
+  @Permissions(Permission.PAYOUTS_MANAGE)
+  async markSelectedPaid(
+    @Body() body: { dealIds: string[] },
+    @Query('organizationId') organizationId: string
+  ) {
+    return this.payoutsService.markSelectedAsPaid(body.dealIds, organizationId);
   }
 }
