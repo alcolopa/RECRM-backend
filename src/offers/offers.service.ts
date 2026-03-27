@@ -167,7 +167,23 @@ export class OffersService {
       throw new ForbiddenException('You do not have access to this offer');
     }
 
-    return this.transformOffer(offer);
+    let associatedDeal = null;
+    if (offer.status === OfferStatus.ACCEPTED) {
+      associatedDeal = await this.prisma.deal.findFirst({
+        where: {
+          propertyId: offer.negotiation.propertyId,
+          contactId: offer.negotiation.contactId,
+          organizationId: user.organizationId,
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    }
+
+    const transformed = this.transformOffer(offer);
+    if (associatedDeal) {
+      transformed.associatedDeal = associatedDeal;
+    }
+    return transformed;
   }
 
   async create(createOfferDto: CreateOfferDto, user: any) {
@@ -310,7 +326,7 @@ export class OffersService {
     }
 
     return await this.prisma.$transaction(async (tx) => {
-      const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, type, buyerCommission, sellerCommission, agentCommission, ...counterData } = counterOfferDto;
+      const { closingDate: rawClosingDate, expirationDate: rawExpirationDate, type, buyerCommission, sellerCommission, agentCommission, organizationId, ...counterData } = counterOfferDto;
       const closingDate = rawClosingDate ? new Date(rawClosingDate) : null;
       const expirationDate = rawExpirationDate ? new Date(rawExpirationDate) : null;
 
@@ -340,9 +356,25 @@ export class OffersService {
         throw new BadRequestException('Expiration date must be further in time than the closing date');
       }
 
-      // 1. Update the existing offer with new counter data
-      const updatedOffer = await tx.offer.update({
+      // 1. Mark existing offer as REJECTED
+      await tx.offer.update({
         where: { id },
+        data: { status: OfferStatus.REJECTED },
+      });
+
+      // 2. Add rejection history to the old offer
+      await tx.offerHistory.create({
+        data: {
+          offerId: id,
+          userId: user.userId,
+          action: OfferAction.OFFER_REJECTED,
+          oldValue: originalOffer.status,
+          newValue: OfferStatus.REJECTED,
+        },
+      });
+
+      // 3. Create a NEW offer with the counter data
+      const updatedOffer = await tx.offer.create({
         data: {
           ...counterData,
           closingDate,
@@ -351,14 +383,17 @@ export class OffersService {
           buyerCommission,
           sellerCommission,
           agentCommission,
-          status: OfferStatus.COUNTERED,
+          status: OfferStatus.SUBMITTED,
+          negotiation: { connect: { id: originalOffer.negotiationId } },
+          organization: { connect: { id: user.organizationId } },
+          createdBy: { connect: { id: user.userId } },
         },
       });
 
-      // 2. Add to history
+      // 4. Add to history for the new counter offer
       await tx.offerHistory.create({
         data: {
-          offerId: id,
+          offerId: updatedOffer.id,
           userId: user.userId,
           action: OfferAction.COUNTER_OFFER,
           offerer: counterData.offerer,
@@ -386,7 +421,7 @@ export class OffersService {
       });
 
       const result = await tx.offer.findUnique({
-        where: { id: originalOffer.id },
+        where: { id: updatedOffer.id },
         include: this.offerInclude,
       });
       return this.transformOffer(result);
@@ -469,7 +504,10 @@ export class OffersService {
         where: { id: offer.id },
         include: this.offerInclude,
       });
-      return this.transformOffer(result);
+      
+      const transformed = this.transformOffer(result);
+      transformed.associatedDeal = deal;
+      return transformed;
     });
   }
 

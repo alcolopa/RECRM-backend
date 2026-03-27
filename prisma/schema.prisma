@@ -857,6 +857,7 @@ enum DealStage {
   NEGOTIATION
   CLOSED_WON
   CLOSED_LOST
+  CLOSED_CANCELLED
 }
 
 enum PropertyStatus {

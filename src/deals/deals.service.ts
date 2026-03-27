@@ -63,15 +63,62 @@ export class DealsService {
   }
 
   async update(id: string, updateDealDto: UpdateDealDto, organizationId: string) {
-    await this.findOne(id, organizationId);
+    const deal = await this.findOne(id, organizationId);
     
-    await this.prisma.deal.update({
-      where: { id },
-      data: updateDealDto,
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      const updatedDeal = await tx.deal.update({
+        where: { id },
+        data: updateDealDto,
+      });
 
-    await this.commissionResolver.resolveCommission(id);
-    return this.findOne(id, organizationId);
+      // If this deal is changing to CLOSED_WON, handle side-effects
+      if (updateDealDto.stage === 'CLOSED_WON' && deal.stage !== 'CLOSED_WON') {
+        // 1. Cancel all other active deals for this property
+        if (deal.propertyId) {
+          await tx.deal.updateMany({
+            where: {
+              propertyId: deal.propertyId,
+              id: { not: deal.id },
+              stage: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'CLOSED_CANCELLED'] }
+            },
+            data: { stage: 'CLOSED_CANCELLED' }
+          });
+
+          // 2. Close all other negotiations for this property
+          if (deal.contactId) {
+            await tx.offerNegotiation.updateMany({
+              where: {
+                propertyId: deal.propertyId,
+                contactId: { not: deal.contactId },
+                status: { notIn: ['CLOSED', 'REJECTED'] }
+              },
+              data: { status: 'CLOSED' }
+            });
+          }
+
+          // 3. Update the property status
+          const propertyStatus = deal.type === 'RENT' ? 'RENTED' : 'SOLD';
+          await tx.property.update({
+            where: { id: deal.propertyId },
+            data: { status: propertyStatus }
+          });
+        }
+      }
+
+      await this.commissionResolver.resolveCommission(id);
+      
+      return tx.deal.findUnique({
+        where: { id },
+        include: {
+          contact: true,
+          property: true,
+          commissionOverride: true,
+          assignedUser: {
+            select: { id: true, firstName: true, lastName: true, email: true, avatar: true }
+          }
+        }
+      });
+    });
   }
 
   async remove(id: string, organizationId: string) {

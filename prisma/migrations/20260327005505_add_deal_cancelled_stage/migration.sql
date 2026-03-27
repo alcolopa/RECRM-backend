@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "DealStage" ADD VALUE 'CLOSED_CANCELLED';
