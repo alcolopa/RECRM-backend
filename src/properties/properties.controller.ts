@@ -25,9 +25,10 @@ import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { Public } from '../auth/public.decorator';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 
 @Controller('properties')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class PropertiesController {
   constructor(
     private readonly propertiesService: PropertiesService,

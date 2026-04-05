@@ -21,6 +21,10 @@ import { CommissionModule } from './commission/commission.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { PayoutsModule } from './payouts/payouts.module';
+import { MatchingModule } from './matching/matching.module';
+import { SubscriptionModule } from './subscription/subscription.module';
+import { AdminModule } from './admin/admin.module';
+import { SubscriptionGuard } from './subscription/subscription.guard';
 
 @Module({
   imports: [
@@ -49,6 +53,9 @@ import { PayoutsModule } from './payouts/payouts.module';
     SearchModule,
     CommissionModule,
     PayoutsModule,
+    MatchingModule,
+    SubscriptionModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

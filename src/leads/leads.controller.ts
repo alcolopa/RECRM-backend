@@ -7,10 +7,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Controller('leads')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class LeadsController {
   constructor(
     private readonly leadsService: LeadsService,

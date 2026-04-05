@@ -5,12 +5,14 @@ import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { EmailService } from '../email/email.service';
 import * as crypto from 'crypto';
 import { Permission, UserRole } from '@prisma/client';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class OrganizationService {
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   async findById(id: string) {
@@ -233,7 +235,39 @@ export class OrganizationService {
     });
   }
 
+  async removeMember(orgId: string, membershipId: string, ownerId: string) {
+    const org = await this.findById(orgId);
+    if (org.ownerId !== ownerId) {
+      throw new ForbiddenException('Only the organization owner can remove members');
+    }
+
+    const membership = await this.prisma.membership.findUnique({
+      where: { id: membershipId }
+    });
+
+    if (!membership || membership.organizationId !== orgId) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (membership.userId === org.ownerId) {
+      throw new BadRequestException('The organization owner cannot be removed');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const deletedMembership = await tx.membership.delete({
+        where: { id: membershipId }
+      });
+
+      // Decrement used seats when member is removed
+      await this.subscriptionService.decrementUsedSeats(orgId, tx);
+
+      return deletedMembership;
+    });
+  }
+
   async createInvitation(orgId: string, inviterId: string, dto: CreateInvitationDto & { customRoleId?: string }) {
+    await this.subscriptionService.checkCreationLimit(orgId, 'users');
+    
     const org = await this.findById(orgId);
     if (org.ownerId !== inviterId) {
       throw new ConflictException('Only the organization owner can invite members');
@@ -280,6 +314,9 @@ export class OrganizationService {
         organization: true
       }
     });
+
+    // Increment used seats for the invitation
+    await this.subscriptionService.incrementUsedSeats(orgId);
 
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email }
@@ -337,9 +374,14 @@ export class OrganizationService {
       throw new ForbiddenException('Only the organization owner can cancel invitations');
     }
 
-    return this.prisma.invitation.delete({
+    const invitation = await this.prisma.invitation.delete({
       where: { id: invitationId }
     });
+
+    // Decrement used seats when invitation is canceled
+    await this.subscriptionService.decrementUsedSeats(orgId);
+
+    return invitation;
   }
 
   async resendInvitation(orgId: string, invitationId: string, userId: string) {

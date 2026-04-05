@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationService } from '../organization/organization.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,7 @@ export class AuthService {
     private emailService: EmailService,
     private prisma: PrismaService,
     private organizationService: OrganizationService,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -27,8 +29,8 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id };
     const fullUser = await this.usersService.findById(user.id);
+    const payload = { email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole };
     const { password, ...userWithoutPassword } = fullUser;
     
     return {
@@ -71,12 +73,15 @@ export class AuthService {
         await this.organizationService.updateMemberRole(orgId, user.id, (user as any).memberships[0].id, (ownerRole as any).id);
       }
 
+      // Create Trial Subscription
+      await this.subscriptionService.createTrialSubscription(orgId);
+
       // Re-fetch user to get the membership data
       const fullUser = await this.usersService.findById(user.id);
 
       return {
         user: fullUser,
-        access_token: this.jwtService.sign({ email: user.email, sub: user.id }),
+        access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole }),
       };
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -227,7 +232,7 @@ export class AuthService {
       return {
         message: 'Successfully joined organization',
         user: fullUser,
-        access_token: this.jwtService.sign({ email: user.email, sub: user.id })
+        access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole })
       };
     });
   }
@@ -269,7 +274,7 @@ export class AuthService {
 
       return {
         user: fullUser,
-        access_token: this.jwtService.sign({ email: user.email, sub: user.id }),
+        access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole }),
       };
     });
 }

@@ -3,11 +3,12 @@ import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 
 @Controller('tasks')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 

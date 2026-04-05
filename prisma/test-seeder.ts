@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, Permission, ContactType, ContactStatus, LeadStatus, PropertyStatus, PropertyType, FinancingType, OfferStatus, ActivityType, TaskStatus, NegotiationStatus, ListingType, SellingTimeline, BuyingTimeline, PurchasePurpose, ReasonForSelling, DealStage, DealType } from '@prisma/client';
+import { PrismaClient, UserRole, Permission, ContactType, ContactStatus, LeadStatus, PropertyStatus, PropertyType, FinancingType, OfferStatus, ActivityType, TaskStatus, NegotiationStatus, ListingType, SellingTimeline, BuyingTimeline, PurchasePurpose, ReasonForSelling, DealStage, DealType, PropertyListingType, UrgencyLevel } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
@@ -209,8 +209,13 @@ async function main() {
               buyingTimeline: faker.helpers.arrayElement(Object.values(BuyingTimeline)),
               purchasePurpose: faker.helpers.arrayElement(Object.values(PurchasePurpose)),
               preferredCities: [faker.location.city(), faker.location.city()],
+              preferredNeighborhoods: [faker.location.county()],
               minBedrooms: faker.number.int({ min: 1, max: 5 }),
-              preApproved: faker.datatype.boolean()
+              minArea: faker.number.int({ min: 80, max: 100 }),
+              preApproved: faker.datatype.boolean(),
+              intent: faker.helpers.arrayElement(Object.values(PropertyListingType)),
+              amenities: faker.helpers.arrayElements(FEATURES, faker.number.int({ min: 2, max: 5 })),
+              urgencyLevel: faker.helpers.arrayElement(Object.values(UrgencyLevel)),
             }
           });
         }
@@ -236,7 +241,7 @@ async function main() {
     const properties = await Promise.all(
       Array.from({ length: 40 }).map(async (_, index) => {
         const type = config.niche === 'commercial' 
-          ? faker.helpers.arrayElement([PropertyType.OFFICE, PropertyType.SHOP, PropertyType.WAREHOUSE, PropertyType.BUILDING])
+          ? faker.helpers.arrayElement([PropertyType.OFFICE, PropertyType.RETAIL, PropertyType.INDUSTRIAL, PropertyType.COMMERCIAL])
           : faker.helpers.arrayElement([PropertyType.HOUSE, PropertyType.APARTMENT, PropertyType.VILLA]);
         
         let title = '';
@@ -259,10 +264,14 @@ async function main() {
             description: faker.lorem.paragraphs(3),
             address: faker.location.streetAddress(),
             city: faker.location.city(),
+            district: faker.location.county(), // Assign a random district
             country: 'USA',
             price: config.niche === 'luxury' ? faker.number.int({ min: 2000000, max: 15000000 }) : faker.number.int({ min: 200000, max: 900000 }),
             status: faker.helpers.arrayElement(Object.values(PropertyStatus)),
             type,
+            listingType: faker.helpers.arrayElement(Object.values(PropertyListingType)),
+            sizeSqm: faker.number.int({ min: 80, max: 2000 }),
+
             bedrooms: type === PropertyType.HOUSE || type === PropertyType.VILLA ? faker.number.int({ min: 2, max: 8 }) : (type === PropertyType.APARTMENT ? faker.number.int({ min: 1, max: 4 }) : null),
             bathrooms: type === PropertyType.HOUSE || type === PropertyType.VILLA ? faker.number.int({ min: 1, max: 6 }) : (type === PropertyType.APARTMENT ? faker.number.int({ min: 1, max: 3 }) : null),
             area: faker.number.int({ min: 80, max: 2000 }),
@@ -308,7 +317,12 @@ async function main() {
             budget: faker.number.int({ min: 200000, max: 5000000 }),
             organizationId: org.id,
             assignedUserId: faker.helpers.arrayElement(team).id,
-            notes: faker.lorem.sentence()
+            notes: faker.lorem.sentence(),
+            intent: faker.helpers.arrayElement(Object.values(PropertyListingType)),
+            amenities: faker.helpers.arrayElements(FEATURES, faker.number.int({ min: 2, max: 5 })),
+            urgencyLevel: faker.helpers.arrayElement(Object.values(UrgencyLevel)),
+            propertyType: faker.helpers.arrayElement([PropertyType.HOUSE, PropertyType.APARTMENT, PropertyType.VILLA]),
+            preferredLocation: faker.location.county()
           }
         })
       )

@@ -7,72 +7,75 @@ datasource db {
 }
 
 model Organization {
-  id             String             @id @default(uuid())
-  name           String
-  slug           String             @unique
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  address        String?
-  email          String?
-  logo           String?
-  phone          String?
-  website        String?
-  ownerId        String
-  accentColor    String             @default("EMERALD")
-  defaultTheme   OrganizationTheme  @default(LIGHT)
-  activities     Activity[]
-  calendarEvents CalendarEvent[]
-  contacts       Contact[]
-  customRoles    CustomRole[]
-  deals          Deal[]
-  files          File[]
-  invitations    Invitation[]
-  leads          Lead[]
-  memberships    Membership[]
-  notes          Note[]
-  offers         Offer[]
-  negotiations   OfferNegotiation[]
-  owner          User               @relation("OrganizationOwner", fields: [ownerId], references: [id])
-  properties     Property[]
-  tags           Tag[]
-  tasks          Task[]
+  id               String             @id @default(uuid())
+  name             String
+  slug             String             @unique
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  address          String?
+  email            String?
+  logo             String?
+  phone            String?
+  website          String?
+  ownerId          String
+  accentColor      String             @default("EMERALD")
+  defaultTheme     OrganizationTheme  @default(LIGHT)
+  isSuspended      Boolean            @default(false)
+  activities       Activity[]
+  calendarEvents   CalendarEvent[]
+  contacts         Contact[]
+  customRoles      CustomRole[]
+  deals            Deal[]
+  files            File[]
+  invitations      Invitation[]
+  leads            Lead[]
+  memberships      Membership[]
+  notes            Note[]
+  offers           Offer[]
+  negotiations     OfferNegotiation[]
+  owner            User               @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  properties       Property[]
+  tags             Tag[]
+  tasks            Task[]
   commissionConfig CommissionConfig?
+  subscription     OrganizationSubscription?
 
   @@index([id])
 }
 
 model User {
-  id                  String             @id @default(uuid())
-  email               String             @unique
-  password            String
-  firstName           String?
-  lastName            String?
-  avatar              String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  unitPreference      UnitPreference     @default(METRIC)
-  phone               String?
-  completedTutorials  String[]           @default([])
-  dashboardConfig     Json?
-  preferredTheme      ThemePreference    @default(SYSTEM)
-  resetToken          String?
-  resetTokenExpires   DateTime?
-  createdActivities   Activity[]         @relation("CreatedBy")
-  calendarEvents      CalendarEvent[]    @relation("UserCalendar")
-  assignedContacts    Contact[]          @relation("AssignedAgent")
-  assignedDeals       Deal[]             @relation("AssignedUser")
-  sentInvitations     Invitation[]       @relation("Inviter")
-  assignedLeads       Lead[]             @relation("AssignedUser")
-  memberships         Membership[]
-  createdNotes        Note[]             @relation("CreatedBy")
-  createdOffers       Offer[]            @relation("CreatedBy")
-  offerHistory        OfferHistory[]     @relation("HistoryUser")
-  createdNegotiations OfferNegotiation[] @relation("CreatedBy")
-  ownedOrganizations  Organization[]     @relation("OrganizationOwner")
-  assignedProperties  Property[]         @relation("PropertyAgent")
-  createdProperties   Property[]         @relation("PropertyCreatedBy")
-  assignedTasks       Task[]             @relation("AssignedUser")
-  createdTasks        Task[]             @relation("TaskCreator")
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  password              String
+  firstName             String?
+  lastName              String?
+  avatar                String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  globalRole            GlobalRole             @default(USER)
+  unitPreference        UnitPreference         @default(METRIC)
+  phone                 String?
+  completedTutorials    String[]               @default([])
+  dashboardConfig       Json?
+  preferredTheme        ThemePreference        @default(SYSTEM)
+  resetToken            String?
+  resetTokenExpires     DateTime?
+  createdActivities     Activity[]             @relation("CreatedBy")
+  calendarEvents        CalendarEvent[]        @relation("UserCalendar")
+  assignedContacts      Contact[]              @relation("AssignedAgent")
+  assignedDeals         Deal[]                 @relation("AssignedUser")
+  sentInvitations       Invitation[]           @relation("Inviter")
+  assignedLeads         Lead[]                 @relation("AssignedUser")
+  memberships           Membership[]
+  createdNotes          Note[]                 @relation("CreatedBy")
+  createdOffers         Offer[]                @relation("CreatedBy")
+  offerHistory          OfferHistory[]         @relation("HistoryUser")
+  createdNegotiations   OfferNegotiation[]     @relation("CreatedBy")
+  ownedOrganizations    Organization[]         @relation("OrganizationOwner")
+  assignedProperties    Property[]             @relation("PropertyAgent")
+  createdProperties     Property[]             @relation("PropertyCreatedBy")
+  assignedTasks         Task[]                 @relation("AssignedUser")
+  createdTasks          Task[]                 @relation("TaskCreator")
   agentCommissionConfig AgentCommissionConfig?
 
   @@index([email])
@@ -169,30 +172,33 @@ model Contact {
 }
 
 model BuyerProfile {
-  id                     String           @id @default(uuid())
-  contactId              String           @unique
+  id                     String              @id @default(uuid())
+  contactId              String              @unique
   minBudget              Decimal?
   maxBudget              Decimal?
   financingType          FinancingType?
-  preApproved            Boolean          @default(false)
+  preApproved            Boolean             @default(false)
   preApprovedAmount      Decimal?
   downPayment            Decimal?
-  propertyTypes          PropertyType[]   @default([])
+  propertyTypes          PropertyType[]      @default([])
   minBedrooms            Int?
   minBathrooms           Float?
   minArea                Float?
   maxArea                Float?
-  preferredCities        String[]         @default([])
-  preferredNeighborhoods String[]         @default([])
-  parkingRequired        Boolean          @default(false)
-  gardenRequired         Boolean          @default(false)
-  furnished              Boolean          @default(false)
-  newConstruction        Boolean          @default(false)
+  preferredCities        String[]            @default([])
+  preferredNeighborhoods String[]            @default([])
+  parkingRequired        Boolean             @default(false)
+  gardenRequired         Boolean             @default(false)
+  furnished              Boolean             @default(false)
+  newConstruction        Boolean             @default(false)
   buyingTimeline         BuyingTimeline?
   purchasePurpose        PurchasePurpose?
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
-  contact                Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  intent                 PropertyListingType @default(SALE)
+  amenities              String[]            @default([])
+  urgencyLevel           UrgencyLevel?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  contact                Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
 }
 
 model SellerProfile {
@@ -213,30 +219,34 @@ model SellerProfile {
 }
 
 model Lead {
-  id                 String             @id @default(uuid())
+  id                 String              @id @default(uuid())
   firstName          String
   lastName           String
   email              String?
   phone              String?
-  status             LeadStatus         @default(NEW)
+  status             LeadStatus          @default(NEW)
   source             String?
   organizationId     String
   assignedUserId     String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   budget             Decimal?
   convertedAt        DateTime?
-  convertedContactId String?            @unique
+  convertedContactId String?             @unique
   notes              String?
   preferredLocation  String?
   propertyType       PropertyType?
-  activities         Activity[]         @relation("LeadActivities")
+  intent             PropertyListingType @default(SALE)
+  amenities          String[]            @default([])
+  urgencyLevel       UrgencyLevel?
+  activities         Activity[]          @relation("LeadActivities")
   calendarEvents     CalendarEvent[]
   tags               EntityTag[]
-  assignedUser       User?              @relation("AssignedUser", fields: [assignedUserId], references: [id])
-  convertedContact   Contact?           @relation("LeadToContact", fields: [convertedContactId], references: [id])
-  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedUser       User?               @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  convertedContact   Contact?            @relation("LeadToContact", fields: [convertedContactId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   negotiations       OfferNegotiation[]
+  deals              Deal[]
 
   @@index([organizationId])
   @@index([assignedUserId])
@@ -244,106 +254,106 @@ model Lead {
 }
 
 model Property {
-  id               String             @id @default(uuid())
-  organizationId   String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id             String   @id @default(uuid())
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // --- 1. Core Info ---
-  title            String
-  description      String?
-  type             PropertyType       @default(HOUSE)
-  listingType      PropertyListingType?
-  status           PropertyStatus     @default(AVAILABLE)
-  referenceCode    String?            @unique
-  createdById      String?
+  title         String
+  description   String?
+  type          PropertyType         @default(HOUSE)
+  listingType   PropertyListingType?
+  status        PropertyStatus       @default(AVAILABLE)
+  referenceCode String?              @unique
+  createdById   String?
 
   // --- 2. Location ---
-  address          String
-  country          String?
-  city             String?
-  state            String?
-  governorate      String?
-  district         String?
-  street           String?
-  buildingName     String?
-  floor            String?
-  unitNumber       String?
-  zipCode          String?
-  latitude         Float?
-  longitude        Float?
+  address      String
+  country      String?
+  city         String?
+  state        String?
+  governorate  String?
+  district     String?
+  street       String?
+  buildingName String?
+  floor        String?
+  unitNumber   String?
+  zipCode      String?
+  latitude     Float?
+  longitude    Float?
 
   // --- 3. Property Specifications ---
-  sizeSqm          Float?
-  landSizeSqm      Float?
-  bedrooms         Int?
-  bathrooms        Float?
-  area             Float?
-  lotSize          Float?
-  livingRooms      Int?
-  kitchens         Int?
-  parkingSpaces    Int?
-  floorNumber      Int?
-  totalFloors      Int?
-  yearBuilt        Int?
-  condition        PropertyCondition?
-  furnished        Boolean?           @default(false)
+  sizeSqm       Float?
+  landSizeSqm   Float?
+  bedrooms      Int?
+  bathrooms     Float?
+  area          Float?
+  lotSize       Float?
+  livingRooms   Int?
+  kitchens      Int?
+  parkingSpaces Int?
+  floorNumber   Int?
+  totalFloors   Int?
+  yearBuilt     Int?
+  condition     PropertyCondition?
+  furnished     Boolean?           @default(false)
 
   // --- 4. Pricing & Financials (Common) ---
-  price            Decimal?
-  currency         String?            @default("USD")
-  negotiable       Boolean?           @default(false)
+  price      Decimal?
+  currency   String?  @default("USD")
+  negotiable Boolean? @default(false)
 
   // Pricing (Sale)
-  pricePerSqm              Decimal?
-  commissionBuyerPercent   Float?
-  commissionSellerPercent  Float?
-  paymentTerms             Json?
+  pricePerSqm             Decimal?
+  commissionBuyerPercent  Float?
+  commissionSellerPercent Float?
+  paymentTerms            Json?
 
   // Pricing (Rent)
-  rentalPeriod             RentalPeriod?
-  rentAmount               Decimal?
-  paymentFrequency         PaymentFrequency?
-  advancePaymentMonths     Int?
-  securityDeposit          Decimal?
-  minLeaseDurationMonths   Int?
-  maxLeaseDurationMonths   Int?
-  utilitiesIncluded        Boolean?       @default(false)
-  availableFrom            DateTime?
-  renewalTerms             String?
+  rentalPeriod           RentalPeriod?
+  rentAmount             Decimal?
+  paymentFrequency       PaymentFrequency?
+  advancePaymentMonths   Int?
+  securityDeposit        Decimal?
+  minLeaseDurationMonths Int?
+  maxLeaseDurationMonths Int?
+  utilitiesIncluded      Boolean?          @default(false)
+  availableFrom          DateTime?
+  renewalTerms           String?
 
   // Pricing (Lease / Commercial)
-  leaseTermYears           Int?
-  rentEscalation           String?
-  fitOutPeriod             String?
-  serviceCharges           Decimal?
-  insuranceRequired        Boolean?       @default(false)
+  leaseTermYears            Int?
+  rentEscalation            String?
+  fitOutPeriod              String?
+  serviceCharges            Decimal?
+  insuranceRequired         Boolean?                   @default(false)
   maintenanceResponsibility MaintenanceResponsibility?
 
   // --- 5. Legal & Ownership ---
-  ownerName                String?
-  ownerContactId           String?
-  ownershipType            OwnershipType?
-  titleDeedAvailable       Boolean?       @default(false)
-  zoningType               ZoningType?
-  legalNotes               String?
+  ownerName          String?
+  ownerContactId     String?
+  ownershipType      OwnershipType?
+  titleDeedAvailable Boolean?       @default(false)
+  zoningType         ZoningType?
+  legalNotes         String?
 
   // --- 6. Features ---
-  features         String[]
+  features String[]
 
   // --- 7. CRM Fields ---
-  assignedUserId   String?
-  sellerProfileId  String?
-  source           PropertySource?
-  listingDate      DateTime?
-  expiryDate       DateTime?
-  priority         PropertyPriority?
-  propertyTags     String[]           @default([])
+  assignedUserId  String?
+  sellerProfileId String?
+  source          PropertySource?
+  listingDate     DateTime?
+  expiryDate      DateTime?
+  priority        PropertyPriority?
+  propertyTags    String[]          @default([])
 
   // --- 8. Activity Tracking ---
-  viewsCount       Int                @default(0)
-  inquiriesCount   Int                @default(0)
-  lastViewedAt     DateTime?
+  viewsCount     Int       @default(0)
+  inquiriesCount Int       @default(0)
+  lastViewedAt   DateTime?
 
   // --- Relations ---
   deals            Deal[]
@@ -379,13 +389,13 @@ model OfferNegotiation {
   status         NegotiationStatus @default(ACTIVE)
   organizationId String
   propertyId     String
-  contactId      String
+  contactId      String?
   leadId         String?
   createdById    String
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   offers         Offer[]
-  contact        Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact        Contact?          @relation(fields: [contactId], references: [id], onDelete: Cascade)
   createdBy      User              @relation("CreatedBy", fields: [createdById], references: [id])
   lead           Lead?             @relation(fields: [leadId], references: [id])
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -397,7 +407,7 @@ model OfferNegotiation {
 }
 
 model Offer {
-  id             String           @id @default(uuid())
+  id             String        @id @default(uuid())
   price          Decimal
   deposit        Decimal?
   financingType  FinancingType
@@ -408,19 +418,19 @@ model Offer {
   negotiationId  String
   organizationId String
   createdById    String
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  offerer        OffererType      @default(BUYER)
-  type           DealType         @default(SALE)
-  
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  offerer        OffererType   @default(BUYER)
+  type           DealType      @default(SALE)
+
   buyerCommission  Decimal?
   sellerCommission Decimal?
   agentCommission  Decimal?
-  
-  createdBy      User             @relation("CreatedBy", fields: [createdById], references: [id])
-  negotiation    OfferNegotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  history        OfferHistory[]
+
+  createdBy    User             @relation("CreatedBy", fields: [createdById], references: [id])
+  negotiation  OfferNegotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  history      OfferHistory[]
 
   @@index([organizationId])
   @@index([createdById])
@@ -450,25 +460,27 @@ model Deal {
   stage          DealStage    @default(DISCOVERY)
   organizationId String
   contactId      String?
+  leadId         String?
   propertyId     String?
   assignedUserId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   assignedUser   User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
   contact        Contact?     @relation(fields: [contactId], references: [id])
+  lead           Lead?        @relation(fields: [leadId], references: [id])
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   property       Property?    @relation(fields: [propertyId], references: [id])
   tags           EntityTag[]
 
-  type              DealType @default(SALE)
-  propertyPrice     Decimal?
-  rentPrice         Decimal?
-  buyerCommission   Decimal?
-  sellerCommission  Decimal?
-  totalCommission   Decimal?
-  agentCommission   Decimal?
-  isAgentPaid       Boolean   @default(false)
-  agentPaidAt       DateTime?
+  type             DealType  @default(SALE)
+  propertyPrice    Decimal?
+  rentPrice        Decimal?
+  buyerCommission  Decimal?
+  sellerCommission Decimal?
+  totalCommission  Decimal?
+  agentCommission  Decimal?
+  isAgentPaid      Boolean   @default(false)
+  agentPaidAt      DateTime?
 
   commissionOverride DealCommissionOverride?
 
@@ -631,65 +643,135 @@ model PropertyFeature {
 }
 
 model CommissionConfig {
-  id                    String   @id @default(uuid())
-  organizationId        String   @unique
+  id             String @id @default(uuid())
+  organizationId String @unique
 
   // RENT
-  rentBuyerValue        Float?
-  rentBuyerType         CommissionType @default(MULTIPLIER)
-  rentSellerValue       Float?
-  rentSellerType        CommissionType @default(MULTIPLIER)
-  rentAgentValue        Float?
-  rentAgentType         CommissionType @default(PERCENTAGE)
+  rentBuyerValue  Float?
+  rentBuyerType   CommissionType @default(MULTIPLIER)
+  rentSellerValue Float?
+  rentSellerType  CommissionType @default(MULTIPLIER)
+  rentAgentValue  Float?
+  rentAgentType   CommissionType @default(PERCENTAGE)
 
   // SALE
-  saleBuyerValue        Float?
-  saleBuyerType         CommissionType @default(PERCENTAGE)
-  saleSellerValue       Float?
-  saleSellerType        CommissionType @default(PERCENTAGE)
-  saleAgentValue        Float?
-  saleAgentType         CommissionType @default(PERCENTAGE)
+  saleBuyerValue  Float?
+  saleBuyerType   CommissionType @default(PERCENTAGE)
+  saleSellerValue Float?
+  saleSellerType  CommissionType @default(PERCENTAGE)
+  saleAgentValue  Float?
+  saleAgentType   CommissionType @default(PERCENTAGE)
 
-  paymentTiming         String?
-  paymentMethod         String?
+  paymentTiming String?
+  paymentMethod String?
 
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model AgentCommissionConfig {
-  id                    String   @id @default(uuid())
-  agentId               String   @unique
+  id      String @id @default(uuid())
+  agentId String @unique
 
   // RENT overrides
-  rentAgentValue        Float?
-  rentAgentType         CommissionType?
+  rentAgentValue Float?
+  rentAgentType  CommissionType?
 
   // SALE overrides
-  saleAgentValue        Float?
-  saleAgentType         CommissionType?
+  saleAgentValue Float?
+  saleAgentType  CommissionType?
 
-  monthlyTarget         Decimal?
+  monthlyTarget Decimal?
 
-  agent                 User @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agent User @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
 
 model DealCommissionOverride {
-  id                    String   @id @default(uuid())
-  dealId                String   @unique
+  id     String @id @default(uuid())
+  dealId String @unique
 
-  buyerCommission       Decimal?
-  sellerCommission      Decimal?
-  agentCommission       Decimal?
+  buyerCommission  Decimal?
+  sellerCommission Decimal?
+  agentCommission  Decimal?
 
-  notes                 String?
+  notes String?
 
-  deal                  Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 }
 
 enum CommissionType {
   PERCENTAGE
   FIXED
   MULTIPLIER
+}
+
+model SubscriptionPlan {
+  id           String                     @id @default(uuid())
+  name         String
+  priceMonthly Decimal
+  priceYearly  Decimal?
+  maxSeats     Int
+  features     Json                       // JSON array of feature strings
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  subscriptions OrganizationSubscription[]
+}
+
+model PlanAddon {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal
+  features    Json? // JSON array of feature strings this addon provides
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptionAddons SubscriptionAddon[]
+}
+
+model OrganizationSubscription {
+  id                 String             @id @default(uuid())
+  organizationId     String             @unique
+  planId             String
+  status             SubscriptionStatus @default(TRIAL)
+  seats              Int                @default(1)
+  usedSeats          Int                @default(0)
+  trialStartDate     DateTime           @default(now())
+  trialEndDate       DateTime
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan    @relation(fields: [planId], references: [id])
+  addons       SubscriptionAddon[]
+}
+
+model SubscriptionAddon {
+  id             String                   @id @default(uuid())
+  subscriptionId String
+  addonId        String
+  quantity       Int                      @default(1)
+  activatedAt    DateTime                 @default(now())
+
+  subscription   OrganizationSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  addon          PlanAddon                @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, addonId])
+  @@index([subscriptionId])
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  INACTIVE
+  CANCELED
+}
+
+enum GlobalRole {
+  USER
+  SUPERADMIN
 }
 
 enum DealType {
@@ -982,4 +1064,10 @@ enum OfferAction {
 enum OffererType {
   AGENCY
   BUYER
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
 }

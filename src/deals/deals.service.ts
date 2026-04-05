@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDealDto, UpdateDealDto } from './dto/deal.dto';
 import { DealStage } from '@prisma/client';
 import { CommissionResolverService } from '../commission/commission-resolver.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class DealsService {
   constructor(
     private prisma: PrismaService,
     private commissionResolver: CommissionResolverService,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   async findAll(organizationId: string) {
@@ -47,6 +49,8 @@ export class DealsService {
   }
 
   async create(createDealDto: CreateDealDto, organizationId: string) {
+    await this.subscriptionService.checkCreationLimit(organizationId, 'deals');
+
     const deal = await this.prisma.deal.create({
       data: {
         ...createDealDto,

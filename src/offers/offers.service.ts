@@ -172,7 +172,8 @@ export class OffersService {
       associatedDeal = await this.prisma.deal.findFirst({
         where: {
           propertyId: offer.negotiation.propertyId,
-          contactId: offer.negotiation.contactId,
+          ...(offer.negotiation.contactId ? { contactId: offer.negotiation.contactId } : {}),
+          ...(offer.negotiation.leadId ? { leadId: offer.negotiation.leadId } : {}),
           organizationId: user.organizationId,
         },
         orderBy: { createdAt: 'desc' }
@@ -228,13 +229,19 @@ export class OffersService {
       throw new BadRequestException('Invalid property');
     }
 
-    // 2. Validate contact belongs to organization
-    const contact = await this.prisma.contact.findFirst({
-      where: { id: contactId, organizationId: user.organizationId },
-    });
+    if (!contactId && !leadId) {
+      throw new BadRequestException('Either contactId or leadId must be provided');
+    }
 
-    if (!contact) {
-      throw new BadRequestException('Invalid contact');
+    // 2. Validate contact belongs to organization
+    if (contactId) {
+      const contact = await this.prisma.contact.findFirst({
+        where: { id: contactId, organizationId: user.organizationId },
+      });
+
+      if (!contact) {
+        throw new BadRequestException('Invalid contact');
+      }
     }
 
     // 3. Validate lead belongs to organization (if provided)
@@ -252,7 +259,8 @@ export class OffersService {
       let negotiation = await tx.offerNegotiation.findFirst({
         where: {
           propertyId,
-          contactId,
+          ...(contactId ? { contactId } : {}),
+          ...(leadId ? { leadId } : {}),
           organizationId: user.organizationId,
           status: NegotiationStatus.ACTIVE,
         },
@@ -261,10 +269,10 @@ export class OffersService {
         negotiation = await tx.offerNegotiation.create({
           data: {
             property: { connect: { id: propertyId } },
-            contact: { connect: { id: contactId } },
+            ...(contactId ? { contact: { connect: { id: contactId } } } : {}),
+            ...(leadId ? { lead: { connect: { id: leadId } } } : {}),
             organization: { connect: { id: user.organizationId } },
             createdBy: { connect: { id: user.userId } },
-            ...(leadId ? { lead: { connect: { id: leadId } } } : {}),
           },
         });
       }
@@ -305,7 +313,8 @@ export class OffersService {
           subject: 'Offer Created',
           content: `New offer of ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(offerData.price))} created for property ${property.title}.`,
           organizationId: user.organizationId,
-          contactId,
+          ...(contactId ? { contactId } : {}),
+          ...(leadId ? { leadId } : {}),
           createdById: user.userId,
         },
       });
@@ -415,7 +424,8 @@ export class OffersService {
           subject: 'Offer Countered',
           content: `Offer updated with a counter-price of ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(counterOfferDto.price))}.`,
           organizationId: user.organizationId,
-          contactId: originalOffer.negotiation.contactId,
+          ...(originalOffer.negotiation.contactId ? { contactId: originalOffer.negotiation.contactId } : {}),
+          ...(originalOffer.negotiation.leadId ? { leadId: originalOffer.negotiation.leadId } : {}),
           createdById: user.userId,
         },
       });
@@ -451,11 +461,12 @@ export class OffersService {
       // 3. Create Deal
       const deal = await tx.deal.create({
         data: {
-          title: `Deal: ${offer.negotiation.property.title} - ${offer.negotiation.contact.firstName} ${offer.negotiation.contact.lastName}`,
+          title: `Deal: ${offer.negotiation.property.title} - ${offer.negotiation.contact?.firstName || offer.negotiation.lead?.firstName || 'Client'}`,
           value: offer.price,
           stage: 'NEGOTIATION',
           organizationId: user.organizationId,
-          contactId: offer.negotiation.contactId,
+          ...(offer.negotiation.contactId ? { contactId: offer.negotiation.contactId } : {}),
+          ...(offer.negotiation.leadId ? { leadId: offer.negotiation.leadId } : {}),
           propertyId: offer.negotiation.propertyId,
           assignedUserId: offer.createdById,
           type: offer.type,
@@ -495,7 +506,8 @@ export class OffersService {
           subject: 'Offer Accepted',
           content: `Offer of ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(offer.price))} accepted. Negotiation successfully closed.`,
           organizationId: user.organizationId,
-          contactId: offer.negotiation.contactId,
+          ...(offer.negotiation.contactId ? { contactId: offer.negotiation.contactId } : {}),
+          ...(offer.negotiation.leadId ? { leadId: offer.negotiation.leadId } : {}),
           createdById: user.userId,
         },
       });
@@ -537,7 +549,8 @@ export class OffersService {
           subject: 'Offer Rejected',
           content: `Offer of ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(offer.price))} rejected.`,
           organizationId: user.organizationId,
-          contactId: offer.negotiation.contactId,
+          ...(offer.negotiation.contactId ? { contactId: offer.negotiation.contactId } : {}),
+          ...(offer.negotiation.leadId ? { leadId: offer.negotiation.leadId } : {}),
           createdById: user.userId,
         },
       });

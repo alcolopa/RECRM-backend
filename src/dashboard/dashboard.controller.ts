@@ -2,11 +2,12 @@ import { Controller, Get, UseGuards, Request, Query } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class DashboardController {
   constructor(
     private readonly dashboardService: DashboardService,

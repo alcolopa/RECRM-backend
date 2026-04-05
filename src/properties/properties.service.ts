@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { UploadService } from '../upload/upload.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class PropertiesService {
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   private async verifyAgentMembership(userId: string, organizationId: string) {
@@ -80,6 +82,8 @@ export class PropertiesService {
 
   async create(createPropertyDto: CreatePropertyDto) {
     const { featureIds, ...rest } = createPropertyDto;
+
+    await this.subscriptionService.checkCreationLimit(rest.organizationId, 'properties');
 
     if (rest.assignedUserId) {
         await this.verifyAgentMembership(rest.assignedUserId, rest.organizationId);

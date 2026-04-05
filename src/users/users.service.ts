@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptionService: SubscriptionService,
+  ) {}
 
   private userInclude = {
     memberships: {
@@ -143,6 +147,9 @@ export class UsersService {
             role: role || 'OWNER',
           },
         });
+
+        // 4. Increment used seats
+        await this.subscriptionService.incrementUsedSeats(org.id, tx);
 
         return tx.user.findUnique({
           where: { id: user.id },

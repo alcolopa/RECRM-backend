@@ -206,6 +206,16 @@ export class OrganizationController {
     return this.organizationService.updateMemberRole(id, req.user.userId, membershipId, customRoleId);
   }
 
+  @Delete(':id/members/:membershipId')
+  @Permissions(Permission.TEAM_REMOVE_MEMBER)
+  async removeMember(
+    @Param('id') id: string,
+    @Param('membershipId') membershipId: string,
+    @Request() req: any,
+  ) {
+    return this.organizationService.removeMember(id, membershipId, req.user.userId);
+  }
+
   private async getDefaultOrgId(userId: string): Promise<string | null> {
     const membership = await this.organizationService['prisma'].membership.findFirst({
       where: { userId },

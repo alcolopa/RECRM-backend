@@ -4,19 +4,20 @@
   "description": "RealEstateCRM backend (NestJS)",
   "main": "dist/main.js",
   "scripts": {
-    "build": "NODE_OPTIONS='--max-old-space-size=300' tsc -p tsconfig.json",
-    "start": "NODE_OPTIONS='--max-old-space-size=300' node dist/main.js",
-    "start:dev": "NODE_OPTIONS='--max-old-space-size=300' ts-node-dev --respawn --transpile-only src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "NODE_OPTIONS='--max-old-space-size=300' ts-node --transpile-only prisma/seed.ts",
-    "db:test-seed": "NODE_OPTIONS='--max-old-space-size=300' ts-node --transpile-only prisma/test-seeder.ts",
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "db:test-seed": "ts-node --transpile-only prisma/test-seeder.ts",
+    "admin:create": "ts-node --transpile-only scripts/create-admin.ts",
     "db:setup": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
     "lint": "echo \"No linter configured yet\"",
     "test": "echo \"No tests configured yet\""
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "keywords": [
     "nestjs",

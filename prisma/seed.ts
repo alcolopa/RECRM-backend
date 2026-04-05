@@ -1,11 +1,6 @@
-import { PrismaClient, UserRole, LeadStatus, PropertyStatus, ActivityType, ContactType, FinancingType, BuyingTimeline, DealStage, Permission } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import { UserRole, LeadStatus, PropertyStatus, ActivityType, ContactType, FinancingType, BuyingTimeline, DealStage, Permission } from '@prisma/client';
 import 'dotenv/config';
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+import prisma from '../lib/prisma';
 
 async function main() {
   console.log('Start seeding...');
@@ -357,6 +352,44 @@ async function main() {
       where: { name: feature.name },
       update: { category: feature.category },
       create: feature,
+    });
+  }
+
+  // 10. Seed Subscription Plans
+  console.log('Seeding subscription plans...');
+  const plans = [
+    {
+      name: 'Starter',
+      priceMonthly: 0,
+      maxSeats: 5,
+      features: ['Basic CRM', '5 Properties', '50 Contacts', 'Manual Matching'],
+    },
+    {
+      name: 'Professional',
+      priceMonthly: 49,
+      maxSeats: 15,
+      features: ['Advanced CRM', 'Unlimited Properties', '1000 Contacts', 'AI Matching', 'Custom Branding'],
+    },
+    {
+      name: 'Enterprise',
+      priceMonthly: 199,
+      maxSeats: 100,
+      features: ['Full Suite', 'Unlimited Everything', 'Priority Support', 'API Access', 'Custom Roles'],
+    },
+  ];
+
+  for (const planData of plans) {
+    await prisma.subscriptionPlan.upsert({
+      where: { id: planData.name.toLowerCase() }, // Using name as ID for seeding stability
+      update: {
+        priceMonthly: planData.priceMonthly,
+        maxSeats: planData.maxSeats,
+        features: planData.features,
+      },
+      create: {
+        id: planData.name.toLowerCase(),
+        ...planData,
+      },
     });
   }
 

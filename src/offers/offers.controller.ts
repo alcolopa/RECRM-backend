@@ -5,10 +5,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Controller('offers')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class OffersController {
   constructor(
     private readonly offersService: OffersService,

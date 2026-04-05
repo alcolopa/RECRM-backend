@@ -7,9 +7,10 @@ import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 
 @Controller('contacts')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class ContactsController {
   constructor(
     private readonly contactsService: ContactsService,

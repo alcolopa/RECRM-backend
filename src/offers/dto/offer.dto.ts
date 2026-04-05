@@ -7,8 +7,8 @@ export class CreateOfferDto {
   propertyId!: string;
 
   @IsUUID()
-  @IsNotEmpty()
-  contactId!: string;
+  @IsOptional()
+  contactId?: string;
 
   @IsUUID()
   @IsOptional()

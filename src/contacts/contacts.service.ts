@@ -5,6 +5,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { PropertiesService } from '../properties/properties.service';
 import { UploadService } from '../upload/upload.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class ContactsService {
@@ -12,6 +13,7 @@ export class ContactsService {
     private prisma: PrismaService,
     private propertiesService: PropertiesService,
     private uploadService: UploadService,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   private async verifyAgentMembership(userId: string, organizationId: string) {
@@ -58,6 +60,8 @@ export class ContactsService {
 
   async create(createContactDto: CreateContactDto): Promise<Contact> {
     const { buyerProfile, sellerProfile, assignedAgentId, organizationId, ...contactData } = createContactDto;
+
+    await this.subscriptionService.checkCreationLimit(organizationId, 'contacts');
 
     if (assignedAgentId) {
       await this.verifyAgentMembership(assignedAgentId, organizationId);

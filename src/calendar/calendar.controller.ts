@@ -3,11 +3,12 @@ import { CalendarService } from './calendar.service';
 import { CreateCalendarEventDto, UpdateCalendarEventDto } from './dto/calendar-event.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { SubscriptionGuard } from '../subscription/subscription.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { Permission } from '@prisma/client';
 
 @Controller('calendar')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, SubscriptionGuard)
 export class CalendarController {
   constructor(private readonly calendarService: CalendarService) {}
 
