@@ -66,15 +66,15 @@ export class OrganizationService {
       },
       {
         name: 'Agent',
-        description: 'Manage leads, contacts, and properties',
+        description: 'Manage leads, contacts, properties, tasks and calendar',
         permissions: [
           Permission.LEADS_VIEW, Permission.LEADS_CREATE, Permission.LEADS_EDIT,
           Permission.CONTACTS_VIEW, Permission.CONTACTS_CREATE, Permission.CONTACTS_EDIT,
           Permission.PROPERTIES_VIEW, Permission.PROPERTIES_CREATE, Permission.PROPERTIES_EDIT,
           Permission.DEALS_VIEW, Permission.DEALS_CREATE, Permission.DEALS_EDIT,
-          Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW,
           Permission.TASKS_VIEW, Permission.TASKS_CREATE, Permission.TASKS_EDIT, Permission.TASKS_DELETE,
-          Permission.CALENDAR_VIEW, Permission.CALENDAR_EDIT
+          Permission.CALENDAR_VIEW, Permission.CALENDAR_EDIT,
+          Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW, Permission.PAYOUTS_VIEW
         ],
         level: 2,
         isSystem: true,
@@ -83,19 +83,29 @@ export class OrganizationService {
         name: 'Support',
         description: 'View only access to most features',
         permissions: [
-          Permission.LEADS_VIEW, Permission.CONTACTS_VIEW, Permission.PROPERTIES_VIEW, 
-          Permission.DEALS_VIEW, Permission.TASKS_VIEW, Permission.CALENDAR_VIEW,
-          Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+          Permission.LEADS_VIEW, Permission.LEADS_VIEW_ALL,
+          Permission.CONTACTS_VIEW, Permission.CONTACTS_VIEW_ALL,
+          Permission.PROPERTIES_VIEW, Permission.PROPERTIES_VIEW_ALL, 
+          Permission.DEALS_VIEW, Permission.DEALS_VIEW_ALL,
+          Permission.OFFERS_VIEW_ALL,
+          Permission.TASKS_VIEW, Permission.TASKS_VIEW_ALL,
+          Permission.CALENDAR_VIEW, Permission.CALENDAR_VIEW_ALL,
+          Permission.DASHBOARD_VIEW, Permission.DASHBOARD_VIEW_ALL,
+          Permission.PAYOUTS_VIEW, Permission.PAYOUTS_VIEW_ALL,
+          Permission.TEAM_VIEW
         ],
         level: 1,
         isSystem: true,
       }
     ];
 
+    // Fetch all existing global roles once
+    const existingGlobalRoles = await this.prisma.customRole.findMany({
+      where: { organizationId: null }
+    });
+
     for (const roleData of globalRoles) {
-      const existing = await this.prisma.customRole.findFirst({
-        where: { name: roleData.name, organizationId: null }
-      });
+      const existing = existingGlobalRoles.find(r => r.name === roleData.name);
 
       if (!existing) {
         await this.prisma.customRole.create({
@@ -119,9 +129,11 @@ export class OrganizationService {
   }
 
   async initializeDefaultRoles(organizationId: string) {
-    return this.prisma.customRole.findFirst({
-      where: { name: 'Owner', organizationId: null }
+    const roles = await this.prisma.customRole.findMany({
+      where: { name: 'Owner', organizationId: null },
+      take: 1
     });
+    return roles[0];
   }
 
   async getRoles(orgId: string) {
@@ -184,9 +196,11 @@ export class OrganizationService {
     if (!role) throw new NotFoundException('Role not found');
     if (role.isSystem) throw new BadRequestException('System roles cannot be deleted');
 
-    const supportRole = await this.prisma.customRole.findFirst({
-      where: { name: 'Support', organizationId: null }
+    const supportRoles = await this.prisma.customRole.findMany({
+      where: { name: 'Support', organizationId: null },
+      take: 1
     });
+    const supportRole = supportRoles[0];
 
     if (!supportRole) {
       throw new Error('System Support role not found. Please contact administrator.');

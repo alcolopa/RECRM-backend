@@ -212,6 +212,14 @@ export class TasksService {
       throw new ForbiddenException('You can only update your own tasks');
     }
 
+    // Status change check: ONLY the assignee (current or new) can change the status
+    if (updateTaskDto.status !== undefined && updateTaskDto.status !== task.status) {
+      const finalAssigneeId = updateTaskDto.assignedUserId !== undefined ? updateTaskDto.assignedUserId : task.assignedUserId;
+      if (finalAssigneeId !== userId) {
+        throw new ForbiddenException('Only the assignee can change the task status');
+      }
+    }
+
     // Assignment check
     if (updateTaskDto.assignedUserId && updateTaskDto.assignedUserId !== task.assignedUserId) {
       // 1. Check if they have general assignment permission

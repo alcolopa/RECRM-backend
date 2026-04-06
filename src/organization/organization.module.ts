@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { OrganizationService } from './organization.service';
 import { OrganizationController } from './organization.controller';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -11,9 +11,15 @@ import { SubscriptionModule } from '../subscription/subscription.module';
   exports: [OrganizationService],
 })
 export class OrganizationModule implements OnModuleInit {
+  private readonly logger = new Logger(OrganizationModule.name);
+
   constructor(private readonly organizationService: OrganizationService) {}
 
   async onModuleInit() {
-    await this.organizationService.seedGlobalRoles();
+    try {
+      await this.organizationService.seedGlobalRoles();
+    } catch (error) {
+      this.logger.error('Failed to seed global roles', error);
+    }
   }
 }

@@ -58,10 +58,14 @@ async function main() {
   ];
 
   const createdRoles: Record<string, any> = {};
+  
+  // Fetch existing global roles once
+  const existingGlobalRoles = await prisma.customRole.findMany({
+    where: { organizationId: null }
+  });
+
   for (const roleData of globalRoles) {
-    let role = await prisma.customRole.findFirst({
-      where: { name: roleData.name, organizationId: null }
-    });
+    let role = existingGlobalRoles.find(r => r.name === roleData.name);
 
     if (role) {
       role = await prisma.customRole.update({
