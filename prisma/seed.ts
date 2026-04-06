@@ -32,7 +32,7 @@ async function main() {
         Permission.DEALS_VIEW, Permission.DEALS_CREATE, Permission.DEALS_EDIT,
         Permission.TASKS_VIEW, Permission.TASKS_CREATE, Permission.TASKS_EDIT, Permission.TASKS_DELETE,
         Permission.CALENDAR_VIEW, Permission.CALENDAR_EDIT,
-        Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+        Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW, Permission.PAYOUTS_VIEW
       ],
       level: 2,
       isSystem: true,
@@ -41,9 +41,16 @@ async function main() {
       name: 'Support',
       description: 'View only access to most features',
       permissions: [
-        Permission.LEADS_VIEW, Permission.CONTACTS_VIEW, Permission.PROPERTIES_VIEW, 
-        Permission.DEALS_VIEW, Permission.TASKS_VIEW, Permission.CALENDAR_VIEW,
-        Permission.DASHBOARD_VIEW, Permission.TEAM_VIEW
+        Permission.LEADS_VIEW, Permission.LEADS_VIEW_ALL,
+        Permission.CONTACTS_VIEW, Permission.CONTACTS_VIEW_ALL,
+        Permission.PROPERTIES_VIEW, Permission.PROPERTIES_VIEW_ALL, 
+        Permission.DEALS_VIEW, Permission.DEALS_VIEW_ALL,
+        Permission.OFFERS_VIEW_ALL,
+        Permission.TASKS_VIEW, Permission.TASKS_VIEW_ALL,
+        Permission.CALENDAR_VIEW, Permission.CALENDAR_VIEW_ALL,
+        Permission.DASHBOARD_VIEW, Permission.DASHBOARD_VIEW_ALL,
+        Permission.PAYOUTS_VIEW, Permission.PAYOUTS_VIEW_ALL,
+        Permission.TEAM_VIEW
       ],
       level: 1,
       isSystem: true,
@@ -361,18 +368,21 @@ async function main() {
     {
       name: 'Starter',
       priceMonthly: 0,
+      pricePerSeat: 0,
       maxSeats: 5,
       features: ['Basic CRM', '5 Properties', '50 Contacts', 'Manual Matching'],
     },
     {
       name: 'Professional',
       priceMonthly: 49,
+      pricePerSeat: 10,
       maxSeats: 15,
       features: ['Advanced CRM', 'Unlimited Properties', '1000 Contacts', 'AI Matching', 'Custom Branding'],
     },
     {
       name: 'Enterprise',
       priceMonthly: 199,
+      pricePerSeat: 15,
       maxSeats: 100,
       features: ['Full Suite', 'Unlimited Everything', 'Priority Support', 'API Access', 'Custom Roles'],
     },
@@ -383,6 +393,7 @@ async function main() {
       where: { id: planData.name.toLowerCase() }, // Using name as ID for seeding stability
       update: {
         priceMonthly: planData.priceMonthly,
+        pricePerSeat: planData.pricePerSeat,
         maxSeats: planData.maxSeats,
         features: planData.features,
       },

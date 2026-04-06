@@ -20,7 +20,7 @@ export class LeadsController {
   @Post()
   @Permissions(Permission.LEADS_CREATE)
   async create(@Body() createLeadDto: CreateLeadDto, @Request() req: any) {
-    return this.leadsService.create(createLeadDto);
+    return this.leadsService.create(createLeadDto, req.user);
   }
 
   @Get()
@@ -36,30 +36,30 @@ export class LeadsController {
       take: paginationDto?.limit,
       sortBy: paginationDto?.sortBy,
       sortOrder: paginationDto?.sortOrder,
-    }, status as any);
+    }, status as any, req.user);
   }
 
   @Get(':id')
   @Permissions(Permission.LEADS_VIEW)
   async findOne(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.leadsService.findOne(id, organizationId);
+    return this.leadsService.findOne(id, organizationId, req.user);
   }
 
   @Patch(':id')
   @Permissions(Permission.LEADS_EDIT)
   async update(@Param('id') id: string, @Body() updateLeadDto: UpdateLeadDto, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.leadsService.update(id, updateLeadDto, organizationId);
+    return this.leadsService.update(id, updateLeadDto, organizationId, req.user);
   }
 
   @Delete(':id')
   @Permissions(Permission.LEADS_DELETE)
   async remove(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.leadsService.remove(id, organizationId);
+    return this.leadsService.remove(id, organizationId, req.user);
   }
 
   @Post(':id/convert')
   @Permissions(Permission.LEADS_EDIT, Permission.CONTACTS_CREATE)
   async convert(@Param('id') id: string, @Body() convertLeadDto: ConvertLeadDto, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.leadsService.convert(id, convertLeadDto, organizationId);
+    return this.leadsService.convert(id, convertLeadDto, organizationId, req.user);
   }
 }

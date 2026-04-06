@@ -1,25 +1,49 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { OfferStatus, LeadStatus, TaskStatus } from '@prisma/client';
+import { OfferStatus, LeadStatus, TaskStatus, Permission } from '@prisma/client';
+import { AccessControlService } from '../common/access-control.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private acl: AccessControlService,
+  ) {}
 
-  async getStats(organizationId: string) {
+  /**
+   * Build a scoped filter for dashboard queries.
+   * Users with DASHBOARD_VIEW_ALL see org-wide stats; others see only their own data.
+   */
+  private async getScopeFilter(userId: string, organizationId: string, ownerField: string = 'assignedUserId') {
+    const ctx = await this.acl.getAccessContext(userId, organizationId);
+    const scopeWhere = this.acl.buildScopedWhere(ctx, Permission.DASHBOARD_VIEW_ALL, {
+      createdByField: 'createdById',
+      assignedToField: ownerField,
+    });
+    return scopeWhere;
+  }
+
+  async getStats(organizationId: string, user: { userId: string }) {
+    const leadScope = await this.getScopeFilter(user.userId, organizationId, 'assignedUserId');
+    const propertyScope = await this.getScopeFilter(user.userId, organizationId, 'assignedUserId');
+    const offerScope = await this.getScopeFilter(user.userId, organizationId, 'createdById');
+    const dealScope = await this.getScopeFilter(user.userId, organizationId, 'assignedUserId');
+
     const [totalLeads, totalProperties, activeOffers, totalRevenue] = await Promise.all([
-      this.prisma.lead.count({ where: { organizationId } }),
-      this.prisma.property.count({ where: { organizationId } }),
+      this.prisma.lead.count({ where: { organizationId, ...leadScope } }),
+      this.prisma.property.count({ where: { organizationId, ...propertyScope } }),
       this.prisma.offer.count({ 
         where: { 
           organizationId,
-          status: { in: [OfferStatus.SUBMITTED, OfferStatus.UNDER_REVIEW, OfferStatus.COUNTERED] }
+          status: { in: [OfferStatus.SUBMITTED, OfferStatus.UNDER_REVIEW, OfferStatus.COUNTERED] },
+          ...offerScope,
         } 
       }),
       this.prisma.deal.aggregate({
         where: { 
           organizationId,
-          stage: 'CLOSED_WON'
+          stage: 'CLOSED_WON',
+          ...dealScope,
         },
         _sum: {
           value: true
@@ -27,8 +51,6 @@ export class DashboardService {
       })
     ]);
 
-    // Calculate changes (mocked for now as we don't have historical snapshots easily available without a log table)
-    // In a real app, you'd compare with last month's counts
     return [
       { label: 'Total Leads', value: totalLeads.toLocaleString(), change: '+12.5%', trend: 'up' },
       { label: 'Properties', value: totalProperties.toLocaleString(), change: '+3.2%', trend: 'up' },
@@ -37,9 +59,11 @@ export class DashboardService {
     ];
   }
 
-  async getPipelineData(organizationId: string) {
+  async getPipelineData(organizationId: string, user: { userId: string }) {
+    const scope = await this.getScopeFilter(user.userId, organizationId, 'assignedUserId');
+
     const deals = await this.prisma.deal.findMany({
-      where: { organizationId },
+      where: { organizationId, ...scope },
       select: {
         stage: true,
         value: true
@@ -66,9 +90,11 @@ export class DashboardService {
     });
   }
 
-  async getRecentLeads(organizationId: string) {
+  async getRecentLeads(organizationId: string, user: { userId: string }) {
+    const scope = await this.getScopeFilter(user.userId, organizationId, 'assignedUserId');
+
     const leads = await this.prisma.lead.findMany({
-      where: { organizationId },
+      where: { organizationId, ...scope },
       orderBy: { createdAt: 'desc' },
       take: 5,
     });
@@ -100,9 +126,11 @@ export class DashboardService {
     }));
   }
 
-  async getRecentActivities(organizationId: string) {
+  async getRecentActivities(organizationId: string, user: { userId: string }) {
+    const scope = await this.getScopeFilter(user.userId, organizationId, 'createdById');
+
     const activities = await this.prisma.activity.findMany({
-      where: { organizationId },
+      where: { organizationId, ...scope },
       orderBy: { createdAt: 'desc' },
       take: 10,
       include: {

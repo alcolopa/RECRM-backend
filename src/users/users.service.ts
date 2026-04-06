@@ -14,14 +14,22 @@ export class UsersService {
   private userInclude = {
     memberships: {
       include: {
-        organization: true,
+        organization: {
+          include: {
+            subscription: {
+              include: {
+                plan: true
+              }
+            }
+          }
+        },
         customRole: true
       }
     },
     ownedOrganizations: true
   };
 
-  private DEFAULT_DASHBOARD_CONFIG = {
+  public DEFAULT_DASHBOARD_CONFIG = {
     lg: [
       { id: 'totalLeads', type: 'totalLeads', size: 'small', x: 0, y: 0, w: 3, h: 2, order: 0 },
       { id: 'totalProperties', type: 'totalProperties', size: 'small', x: 3, y: 0, w: 3, h: 2, order: 1 },
@@ -136,6 +144,17 @@ export class UsersService {
             name: orgCreateData.name,
             slug: orgCreateData.slug,
             ownerId: user.id,
+            commissionConfig: {
+              create: {
+                saleBuyerValue: 2,
+                saleSellerValue: 2,
+                saleAgentValue: 1,
+                rentBuyerValue: 1,
+                rentSellerValue: 1,
+                rentAgentValue: 0.5,
+                rentAgentType: 'MULTIPLIER',
+              },
+            },
           },
         });
 

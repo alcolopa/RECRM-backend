@@ -12,7 +12,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const connectionString = config.get('DATABASE_URL');
     const pool = new Pool({ 
       connectionString,
-      max: 2, // Further limited to save memory on 512MB RAM environments
+      max: 10, // Increased from 2 to avoid client reuse issues in PrismaPg
     });
     const adapter = new PrismaPg(pool);
     super({ adapter });

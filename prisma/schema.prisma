@@ -709,6 +709,7 @@ model SubscriptionPlan {
   name         String
   priceMonthly Decimal
   priceYearly  Decimal?
+  pricePerSeat Decimal                    @default(0)
   maxSeats     Int
   features     Json                       // JSON array of feature strings
   createdAt    DateTime                   @default(now())
@@ -822,6 +823,19 @@ enum Permission {
   CALENDAR_VIEW
   CALENDAR_VIEW_ALL
   CALENDAR_EDIT
+
+  // Unified Access Control — View All (cross-agent visibility within org)
+  LEADS_VIEW_ALL
+  CONTACTS_VIEW_ALL
+  PROPERTIES_VIEW_ALL
+  DEALS_VIEW_ALL
+  OFFERS_VIEW_ALL
+
+  // Financial visibility — org-wide P&L across all agents
+  PAYOUTS_VIEW_ALL
+
+  // Dashboard — org-wide stats vs own-scoped stats
+  DASHBOARD_VIEW_ALL
 }
 
 enum TaskPriority {

@@ -79,25 +79,25 @@ export class PropertiesController {
       minPrice: minPrice ? Number(minPrice) : undefined,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       bedrooms: bedrooms ? Number(bedrooms) : undefined,
-    });
+    }, req.user);
   }
 
   @Get(':id')
   @Permissions(Permission.PROPERTIES_VIEW)
   async findOne(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.propertiesService.findOne(id, organizationId);
+    return this.propertiesService.findOne(id, organizationId, req.user);
   }
 
   @Patch(':id')
   @Permissions(Permission.PROPERTIES_EDIT)
   async update(@Param('id') id: string, @Body() updatePropertyDto: UpdatePropertyDto, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.propertiesService.update(id, updatePropertyDto, organizationId);
+    return this.propertiesService.update(id, updatePropertyDto, organizationId, req.user);
   }
 
   @Delete(':id')
   @Permissions(Permission.PROPERTIES_DELETE)
   async remove(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.propertiesService.remove(id, organizationId);
+    return this.propertiesService.remove(id, organizationId, req.user);
   }
 
   @Post(':id/images')

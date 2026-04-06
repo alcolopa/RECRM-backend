@@ -4,6 +4,8 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { UploadService } from '../upload/upload.service';
 import { SubscriptionService } from '../subscription/subscription.service';
+import { AccessControlService } from '../common/access-control.service';
+import { Permission } from '@prisma/client';
 
 @Injectable()
 export class PropertiesService {
@@ -11,6 +13,7 @@ export class PropertiesService {
     private prisma: PrismaService,
     private uploadService: UploadService,
     private subscriptionService: SubscriptionService,
+    private acl: AccessControlService,
   ) {}
 
   private async verifyAgentMembership(userId: string, organizationId: string) {
@@ -110,8 +113,18 @@ export class PropertiesService {
   async findAll(
     organizationId?: string, 
     pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }, 
-    filters?: { assignedUserId?: string, status?: string, listingType?: string, type?: string, minPrice?: number, maxPrice?: number, bedrooms?: number }
+    filters?: { assignedUserId?: string, status?: string, listingType?: string, type?: string, minPrice?: number, maxPrice?: number, bedrooms?: number },
+    user?: { userId: string },
   ): Promise<{ items: any[], total: number }> {
+    let scopeWhere: Record<string, any> = {};
+    if (user && organizationId) {
+      const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+      scopeWhere = this.acl.buildScopedWhere(ctx, Permission.PROPERTIES_VIEW_ALL, {
+        createdByField: 'createdById',
+        assignedToField: 'assignedUserId',
+      });
+    }
+
     const where: any = {
       ...(organizationId ? { organizationId } : {}),
       ...(filters?.assignedUserId ? { assignedUserId: filters.assignedUserId } : {}),
@@ -119,6 +132,7 @@ export class PropertiesService {
       ...(filters?.listingType ? { listingType: filters.listingType as any } : {}),
       ...(filters?.type ? { type: filters.type as any } : {}),
       ...(filters?.bedrooms ? { bedrooms: { gte: filters.bedrooms } } : {}),
+      ...scopeWhere,
     };
 
     if (filters?.minPrice || filters?.maxPrice) {
@@ -147,7 +161,7 @@ export class PropertiesService {
     };
   }
 
-  async findOne(id: string, organizationId?: string) {
+  async findOne(id: string, organizationId?: string, user?: { userId: string }) {
     const property = await this.prisma.property.findFirst({
       where: { 
         id,
@@ -166,6 +180,17 @@ export class PropertiesService {
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+
+    // Enforce record-level access if user context is provided
+    if (user && organizationId) {
+      const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+      if (!this.acl.canAccessRecord(ctx, property, Permission.PROPERTIES_VIEW_ALL, {
+        createdByField: 'createdById',
+        assignedToField: 'assignedUserId',
+      })) {
+        throw new ForbiddenException('You do not have access to this property');
+      }
     }
 
     return this.transformProperty(property);
@@ -233,11 +258,11 @@ export class PropertiesService {
     };
   }
 
-  async update(id: string, updatePropertyDto: UpdatePropertyDto, organizationId: string) {
+  async update(id: string, updatePropertyDto: UpdatePropertyDto, organizationId: string, user?: { userId: string }) {
     const { featureIds, ...rest } = updatePropertyDto as any;
 
-    // Verify property belongs to organization
-    await this.findOne(id, organizationId);
+    // Verify property belongs to organization and user has access
+    await this.findOne(id, organizationId, user);
 
     if (rest.assignedUserId) {
         await this.verifyAgentMembership(rest.assignedUserId, organizationId);
@@ -281,9 +306,9 @@ export class PropertiesService {
     }
   }
 
-  async remove(id: string, organizationId: string) {
+  async remove(id: string, organizationId: string, user?: { userId: string }) {
     try {
-      const property = await this.findOne(id, organizationId);
+      const property = await this.findOne(id, organizationId, user);
       // Delete images from storage as well
       if (property.propertyImages) {
         for (const img of property.propertyImages) {

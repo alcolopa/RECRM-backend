@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto, CounterOfferDto, UpdateOfferDto } from './dto/offer.dto';
-import { OfferStatus, NegotiationStatus, OfferAction, UserRole, ActivityType, OffererType } from '@prisma/client';
+import { OfferStatus, NegotiationStatus, OfferAction, UserRole, ActivityType, OffererType, Permission } from '@prisma/client';
 import { PropertiesService } from '../properties/properties.service';
 import { UploadService } from '../upload/upload.service';
+import { CommissionResolverService } from '../commission/commission-resolver.service';
+import { AccessControlService } from '../common/access-control.service';
+import { AccessStrategy } from '../common/access-control.types';
 
 @Injectable()
 export class OffersService {
@@ -11,6 +14,8 @@ export class OffersService {
     private prisma: PrismaService,
     private propertiesService: PropertiesService,
     private uploadService: UploadService,
+    private commissionResolver: CommissionResolverService,
+    private acl: AccessControlService,
   ) {}
 
   private offerInclude = {
@@ -122,12 +127,16 @@ export class OffersService {
     user: any, 
     pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }
   ): Promise<{ items: any[], total: number }> {
-    const where = user.role === UserRole.OWNER || user.role === UserRole.ADMIN
-      ? { organizationId: user.organizationId }
-      : {
-          organizationId: user.organizationId,
-          createdById: user.userId,
-        };
+    const ctx = await this.acl.getAccessContext(user.userId, user.organizationId);
+    const scopeWhere = this.acl.buildScopedWhere(ctx, Permission.OFFERS_VIEW_ALL, {
+      createdByField: 'createdById',
+      defaultStrategy: AccessStrategy.OWN_ONLY,
+    });
+
+    const where = {
+      organizationId: user.organizationId,
+      ...scopeWhere,
+    };
 
     const sortBy = pagination?.sortBy || 'updatedAt';
     const sortOrder = pagination?.sortOrder || 'desc';
@@ -163,7 +172,11 @@ export class OffersService {
       throw new ForbiddenException('You do not have access to this offer');
     }
 
-    if (user.role !== UserRole.OWNER && user.role !== UserRole.ADMIN && offer.createdById !== user.userId) {
+    const ctx = await this.acl.getAccessContext(user.userId, user.organizationId);
+    if (!this.acl.canAccessRecord(ctx, offer, Permission.OFFERS_VIEW_ALL, {
+      createdByField: 'createdById',
+      defaultStrategy: AccessStrategy.OWN_ONLY,
+    })) {
       throw new ForbiddenException('You do not have access to this offer');
     }
 
@@ -487,6 +500,10 @@ export class OffersService {
           },
         });
       }
+
+      // 4.5. Resolve Commission (initial calculation for the new deal)
+      await this.commissionResolver.resolveCommission(deal.id, tx);
+
 
       // 5. Create history
       await tx.offerHistory.create({

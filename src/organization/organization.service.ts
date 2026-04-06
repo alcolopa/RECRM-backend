@@ -266,8 +266,18 @@ export class OrganizationService {
   }
 
   async createInvitation(orgId: string, inviterId: string, dto: CreateInvitationDto & { customRoleId?: string }) {
-    await this.subscriptionService.checkCreationLimit(orgId, 'users');
-    
+    const subscription = await this.prisma.organizationSubscription.findUnique({
+      where: { organizationId: orgId },
+      include: { plan: true, organization: { include: { invitations: { where: { status: 'PENDING', expiresAt: { gt: new Date() } } } } } }
+    });
+
+    if (subscription) {
+      const activePendingInvitations = subscription.organization.invitations.length;
+      if (subscription.usedSeats + activePendingInvitations >= subscription.seats) {
+        throw new ForbiddenException({ seats: 'All purchased seats are occupied (including pending invitations). Please purchase more seats to invite more members.' });
+      }
+    }
+
     const org = await this.findById(orgId);
     if (org.ownerId !== inviterId) {
       throw new ConflictException('Only the organization owner can invite members');

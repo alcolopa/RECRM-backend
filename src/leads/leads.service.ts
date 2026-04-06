@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Lead, Contact, LeadStatus, ContactStatus } from '@prisma/client';
+import { Lead, Contact, LeadStatus, ContactStatus, Permission } from '@prisma/client';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { ConvertLeadDto } from './dto/convert-lead.dto';
+import { AccessControlService } from '../common/access-control.service';
 
 @Injectable()
 export class LeadsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private acl: AccessControlService,
+  ) {}
 
-  async create(createLeadDto: CreateLeadDto): Promise<Lead> {
+  async create(createLeadDto: CreateLeadDto, user?: { userId: string }): Promise<Lead> {
     const { organizationId, assignedUserId, ...leadData } = createLeadDto;
 
     return this.prisma.lead.create({
@@ -17,6 +21,7 @@ export class LeadsService {
         ...leadData,
         organization: { connect: { id: organizationId } },
         ...(assignedUserId ? { assignedUser: { connect: { id: assignedUserId } } } : {}),
+        ...(user?.userId ? { createdBy: { connect: { id: user.userId } } } : {}),
       },
     });
   }
@@ -24,11 +29,22 @@ export class LeadsService {
   async findAll(
     organizationId: string, 
     pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }, 
-    status?: LeadStatus
+    status?: LeadStatus,
+    user?: { userId: string },
   ): Promise<{ items: Lead[], total: number }> {
+    let scopeWhere: Record<string, any> = {};
+    if (user) {
+      const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+      scopeWhere = this.acl.buildScopedWhere(ctx, Permission.LEADS_VIEW_ALL, {
+        createdByField: 'createdById',
+        assignedToField: 'assignedUserId',
+      });
+    }
+
     const where = { 
       organizationId,
       ...(status ? { status } : {}),
+      ...scopeWhere,
     };
 
     const sortBy = pagination?.sortBy || 'createdAt';
@@ -58,7 +74,7 @@ export class LeadsService {
     return { items, total };
   }
 
-  async findOne(id: string, organizationId: string): Promise<Lead> {
+  async findOne(id: string, organizationId: string, user?: { userId: string }): Promise<Lead> {
     const lead = await this.prisma.lead.findFirst({
       where: { id, organizationId },
       include: {
@@ -71,14 +87,25 @@ export class LeadsService {
       throw new NotFoundException(`Lead with ID ${id} not found`);
     }
 
+    // Enforce record-level access if user context is provided
+    if (user) {
+      const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+      if (!this.acl.canAccessRecord(ctx, lead, Permission.LEADS_VIEW_ALL, {
+        createdByField: 'createdById',
+        assignedToField: 'assignedUserId',
+      })) {
+        throw new ForbiddenException('You do not have access to this lead');
+      }
+    }
+
     return lead;
   }
 
-  async update(id: string, updateLeadDto: UpdateLeadDto, organizationId: string): Promise<Lead> {
+  async update(id: string, updateLeadDto: UpdateLeadDto, organizationId: string, user?: { userId: string }): Promise<Lead> {
     const { organizationId: dtoOrgId, assignedUserId, ...leadData } = updateLeadDto;
 
-    // Verify lead belongs to organization
-    await this.findOne(id, organizationId);
+    // Verify lead belongs to organization and user has access
+    await this.findOne(id, organizationId, user);
 
     return this.prisma.lead.update({
       where: { id },
@@ -93,16 +120,16 @@ export class LeadsService {
     });
   }
 
-  async remove(id: string, organizationId: string): Promise<Lead> {
-    await this.findOne(id, organizationId);
+  async remove(id: string, organizationId: string, user?: { userId: string }): Promise<Lead> {
+    await this.findOne(id, organizationId, user);
 
     return this.prisma.lead.delete({
       where: { id },
     });
   }
 
-  async convert(id: string, convertLeadDto: ConvertLeadDto, organizationId: string): Promise<Contact> {
-    const lead = await this.findOne(id, organizationId);
+  async convert(id: string, convertLeadDto: ConvertLeadDto, organizationId: string, user?: { userId: string }): Promise<Contact> {
+    const lead = await this.findOne(id, organizationId, user);
 
     if (lead.convertedAt) {
       throw new BadRequestException('Lead has already been converted');
@@ -129,7 +156,7 @@ export class LeadsService {
       await tx.lead.update({
         where: { id },
         data: {
-          status: LeadStatus.QUALIFIED, // Or CLOSED_WON? I'll use QUALIFIED
+          status: LeadStatus.QUALIFIED,
           convertedAt: new Date(),
           convertedContact: { connect: { id: newContact.id } },
         },

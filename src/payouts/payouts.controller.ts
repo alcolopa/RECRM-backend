@@ -13,11 +13,12 @@ export class PayoutsController {
   @Get('admin-stats')
   @Permissions(Permission.PAYOUTS_VIEW)
   async getAdminStats(
+    @Request() req: any,
     @Query('organizationId') organizationId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    return this.payoutsService.getAdminStats(organizationId, startDate, endDate);
+    return this.payoutsService.getAdminStats(organizationId, req.user, startDate, endDate);
   }
 
   @Get('agent-stats')

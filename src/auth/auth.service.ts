@@ -210,8 +210,8 @@ export class AuthService {
       throw new BadRequestException('You are already a member of another organization. Please leave it before joining a new one.');
     }
 
-    return await this.prisma.$transaction(async (tx) => {
-      // 2. Create membership
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Create membership
       await tx.membership.create({
         data: {
           userId,
@@ -221,20 +221,20 @@ export class AuthService {
         }
       });
 
-      // 3. Update invitation status
+      // 2. Update invitation status
       await tx.invitation.update({
         where: { id: invitation.id },
         data: { status: 'ACCEPTED' }
       });
-      
-      const fullUser = await this.usersService.findById(userId);
-
-      return {
-        message: 'Successfully joined organization',
-        user: fullUser,
-        access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole })
-      };
     });
+
+    const fullUser = await this.usersService.findById(userId);
+
+    return {
+      message: 'Successfully joined organization',
+      user: fullUser,
+      access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole })
+    };
   }
 
   async registerWithInvitation(token: string, userData: any) {
@@ -242,22 +242,23 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-    return await this.prisma.$transaction(async (tx) => {
-      // 1. Create user
-      const user = await tx.user.create({
+    const user = await this.prisma.$transaction(async (tx) => {
+      // 1. Create user with default config
+      const newUser = await tx.user.create({
         data: {
           email: invitation.email,
           password: hashedPassword,
           firstName: userData.firstName,
           lastName: userData.lastName,
           phone: userData.phone,
+          dashboardConfig: this.usersService.DEFAULT_DASHBOARD_CONFIG,
         }
       });
 
       // 2. Create membership
       await tx.membership.create({
         data: {
-          userId: user.id,
+          userId: newUser.id,
           organizationId: invitation.organizationId,
           role: invitation.role,
           customRoleId: invitation.customRoleId
@@ -270,12 +271,14 @@ export class AuthService {
         data: { status: 'ACCEPTED' }
       });
 
-      const fullUser = await this.usersService.findById(user.id);
-
-      return {
-        user: fullUser,
-        access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole }),
-      };
+      return newUser;
     });
-}
+
+    const fullUser = await this.usersService.findById(user.id);
+
+    return {
+      user: fullUser,
+      access_token: this.jwtService.sign({ email: fullUser.email, sub: fullUser.id, globalRole: fullUser.globalRole }),
+    };
+  }
 }

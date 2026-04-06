@@ -1,12 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DealStage } from '@prisma/client';
+import { DealStage, Permission } from '@prisma/client';
+import { AccessControlService } from '../common/access-control.service';
 
 @Injectable()
 export class PayoutsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private acl: AccessControlService,
+  ) {}
 
-  async getAdminStats(organizationId: string, startDate?: string, endDate?: string) {
+  async getAdminStats(organizationId: string, user: { userId: string }, startDate?: string, endDate?: string) {
+    // Verify user has permission to view org-wide financial data
+    const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+    const hasAccess = ctx.isOrgOwner || ctx.role === 'OWNER' || ctx.role === 'ADMIN' || ctx.permissions.includes(Permission.PAYOUTS_VIEW_ALL);
+    if (!hasAccess) {
+      throw new ForbiddenException('You do not have permission to view organization-wide financial data');
+    }
+
     const dateFilter: any = {};
     if (startDate || endDate) {
       dateFilter.createdAt = {};

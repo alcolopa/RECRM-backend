@@ -25,6 +25,7 @@ import { MatchingModule } from './matching/matching.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { AdminModule } from './admin/admin.module';
 import { SubscriptionGuard } from './subscription/subscription.guard';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { SubscriptionGuard } from './subscription/subscription.guard';
     MatchingModule,
     SubscriptionModule,
     AdminModule,
+    CommonModule,
   ],
   controllers: [AppController],
   providers: [
@@ -63,6 +65,10 @@ import { SubscriptionGuard } from './subscription/subscription.guard';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: SubscriptionGuard,
     },
   ],
 })

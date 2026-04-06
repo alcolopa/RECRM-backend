@@ -39,8 +39,8 @@ export class CreateOfferDto {
   notes?: string;
 
   @IsEnum(OffererType)
-  @IsOptional()
-  offerer?: OffererType;
+  @IsNotEmpty()
+  offerer!: OffererType;
 
   @IsEnum(OfferStatus)
   @IsOptional()

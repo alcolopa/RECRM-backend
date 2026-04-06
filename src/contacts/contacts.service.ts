@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Contact, Prisma, ContactType } from '@prisma/client';
+import { Contact, Prisma, ContactType, Permission } from '@prisma/client';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { PropertiesService } from '../properties/properties.service';
 import { UploadService } from '../upload/upload.service';
 import { SubscriptionService } from '../subscription/subscription.service';
+import { AccessControlService } from '../common/access-control.service';
 
 @Injectable()
 export class ContactsService {
@@ -14,6 +15,7 @@ export class ContactsService {
     private propertiesService: PropertiesService,
     private uploadService: UploadService,
     private subscriptionService: SubscriptionService,
+    private acl: AccessControlService,
   ) {}
 
   private async verifyAgentMembership(userId: string, organizationId: string) {
@@ -76,11 +78,11 @@ export class ContactsService {
       data.assignedAgent = { connect: { id: assignedAgentId } };
     }
 
-    if ((contactData.type === ContactType.BUYER || contactData.type === ContactType.BOTH) && buyerProfile) {
-      data.buyerProfile = { create: buyerProfile };
+    if (contactData.type === ContactType.BUYER || contactData.type === ContactType.BOTH) {
+      data.buyerProfile = { create: buyerProfile || {} };
     }
-    if ((contactData.type === ContactType.SELLER || contactData.type === ContactType.BOTH) && sellerProfile) {
-      data.sellerProfile = { create: sellerProfile };
+    if (contactData.type === ContactType.SELLER || contactData.type === ContactType.BOTH) {
+      data.sellerProfile = { create: sellerProfile || {} };
     }
 
     const result = await this.prisma.contact.create({
@@ -105,12 +107,33 @@ export class ContactsService {
   async findAll(
     organizationId: string, 
     type?: ContactType, 
-    pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' }
+    pagination?: { skip?: number, take?: number, sortBy?: string, sortOrder?: 'asc' | 'desc' },
+    user?: { userId: string },
   ): Promise<{ items: Contact[], total: number }> {
-    const where = { 
+    let scopeWhere: Record<string, any> = {};
+    if (user) {
+      const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+      scopeWhere = this.acl.buildScopedWhere(ctx, Permission.CONTACTS_VIEW_ALL, {
+        createdByField: 'createdById',
+        assignedToField: 'assignedAgentId',
+      });
+    }
+
+    const where: any = { 
       organizationId,
-      ...(type ? { type } : {}),
+      ...scopeWhere,
     };
+
+    if (type) {
+      if (type === ContactType.BUYER || type === ContactType.SELLER) {
+        where.OR = [
+          { type },
+          { type: ContactType.BOTH }
+        ];
+      } else {
+        where.type = type;
+      }
+    }
 
     const sortBy = pagination?.sortBy || 'createdAt';
     const sortOrder = pagination?.sortOrder || 'desc';
@@ -144,7 +167,7 @@ export class ContactsService {
     };
   }
 
-  async findOne(id: string, organizationId?: string): Promise<Contact> {
+  async findOne(id: string, organizationId?: string, user?: { userId: string }): Promise<Contact> {
     const contact = await this.prisma.contact.findFirst({
       where: { 
         id,
@@ -187,13 +210,25 @@ export class ContactsService {
     if (!contact) {
       throw new NotFoundException(`Contact with ID ${id} not found`);
     }
+
+    // Enforce record-level access if user context is provided
+    if (user && organizationId) {
+      const ctx = await this.acl.getAccessContext(user.userId, organizationId);
+      if (!this.acl.canAccessRecord(ctx, contact, Permission.CONTACTS_VIEW_ALL, {
+        createdByField: 'createdById',
+        assignedToField: 'assignedAgentId',
+      })) {
+        throw new ForbiddenException('You do not have access to this contact');
+      }
+    }
+
     return this.transformContact(contact);
   }
 
-  async update(id: string, updateContactDto: UpdateContactDto, organizationId: string): Promise<Contact> {
+  async update(id: string, updateContactDto: UpdateContactDto, organizationId: string, user?: { userId: string }): Promise<Contact> {
     const { buyerProfile, sellerProfile, assignedAgentId, organizationId: dtoOrgId, ...contactData } = updateContactDto;
 
-    const existing = await this.findOne(id, organizationId);
+    const existing = await this.findOne(id, organizationId, user);
 
     if (assignedAgentId) {
       await this.verifyAgentMembership(assignedAgentId, organizationId);
@@ -213,19 +248,19 @@ export class ContactsService {
       data.assignedAgent = { disconnect: true };
     }
 
-    if ((updateContactDto.type === ContactType.BUYER || updateContactDto.type === ContactType.BOTH) && buyerProfile) {
+    if (updateContactDto.type === ContactType.BUYER || updateContactDto.type === ContactType.BOTH) {
       data.buyerProfile = {
         upsert: {
-          create: buyerProfile as any,
-          update: buyerProfile as any,
+          create: (buyerProfile as any) || {},
+          update: (buyerProfile as any) || {},
         },
       };
     }
-    if ((updateContactDto.type === ContactType.SELLER || updateContactDto.type === ContactType.BOTH) && sellerProfile) {
+    if (updateContactDto.type === ContactType.SELLER || updateContactDto.type === ContactType.BOTH) {
       data.sellerProfile = {
         upsert: {
-          create: sellerProfile as any,
-          update: sellerProfile as any,
+          create: (sellerProfile as any) || {},
+          update: (sellerProfile as any) || {},
         },
       };
     }
@@ -257,9 +292,9 @@ export class ContactsService {
     }
   }
 
-  async remove(id: string, organizationId: string): Promise<Contact> {
-    // Verify contact belongs to organization
-    await this.findOne(id, organizationId);
+  async remove(id: string, organizationId: string, user?: { userId: string }): Promise<Contact> {
+    // Verify contact belongs to organization and user has access
+    await this.findOne(id, organizationId, user);
 
     try {
       return await this.prisma.contact.delete({

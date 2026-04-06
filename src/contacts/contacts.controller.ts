@@ -30,30 +30,29 @@ export class ContactsController {
     @Query('type') type?: string,
     @Query() paginationDto?: PaginationDto,
   ) {
-    // paginationDto might be empty if no query params were provided
     const skip = paginationDto?.skip;
     const take = paginationDto?.limit;
     const sortBy = paginationDto?.sortBy;
     const sortOrder = paginationDto?.sortOrder;
     
-    return this.contactsService.findAll(organizationId, type as any, { skip, take, sortBy, sortOrder });
+    return this.contactsService.findAll(organizationId, type as any, { skip, take, sortBy, sortOrder }, req.user);
   }
 
   @Get(':id')
   @Permissions(Permission.CONTACTS_VIEW)
   async findOne(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.contactsService.findOne(id, organizationId);
+    return this.contactsService.findOne(id, organizationId, req.user);
   }
 
   @Patch(':id')
   @Permissions(Permission.CONTACTS_EDIT)
   async update(@Param('id') id: string, @Body() updateContactDto: UpdateContactDto, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.contactsService.update(id, updateContactDto, organizationId);
+    return this.contactsService.update(id, updateContactDto, organizationId, req.user);
   }
 
   @Delete(':id')
   @Permissions(Permission.CONTACTS_DELETE)
   async remove(@Param('id') id: string, @Query('organizationId') organizationId: string, @Request() req: any) {
-    return this.contactsService.remove(id, organizationId);
+    return this.contactsService.remove(id, organizationId, req.user);
   }
 }

@@ -34,11 +34,17 @@ export class SubscriptionService {
     return subscription;
   }
 
-  async subscribe(organizationId: string, planId: string, seats: number) {
+  async subscribe(organizationId: string, planId: string, seats?: number) {
     const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
 
-    if (seats > plan.maxSeats) {
+    // Default seats: Starter gets maxSeats(5), others get 1 (owner)
+    let initialSeats = seats || 1;
+    if (plan.name === 'Starter') {
+      initialSeats = plan.maxSeats;
+    }
+
+    if (initialSeats > plan.maxSeats) {
       throw new BadRequestException(`Plan only allows up to ${plan.maxSeats} seats.`);
     }
 
@@ -50,7 +56,7 @@ export class SubscriptionService {
       where: { organizationId },
       update: {
         planId,
-        seats,
+        seats: initialSeats,
         status: SubscriptionStatus.ACTIVE,
         currentPeriodStart,
         currentPeriodEnd,
@@ -58,7 +64,7 @@ export class SubscriptionService {
       create: {
         organizationId,
         planId,
-        seats,
+        seats: initialSeats,
         status: SubscriptionStatus.ACTIVE,
         currentPeriodStart,
         currentPeriodEnd,
@@ -70,14 +76,14 @@ export class SubscriptionService {
   async updateSubscription(organizationId: string, data: { planId?: string, seats?: number }) {
     const subscription = await this.getSubscription(organizationId);
     
-    if (data.planId) {
-      const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: data.planId } });
-      if (!plan) throw new NotFoundException('Plan not found');
-      
-      const seatsToCheck = data.seats || subscription.seats;
-      if (seatsToCheck > plan.maxSeats) {
-        throw new BadRequestException(`Target plan only allows up to ${plan.maxSeats} seats.`);
-      }
+    const targetPlanId = data.planId || subscription.planId;
+    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: targetPlanId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    
+    // Always check for plan's capacity
+    const seatsToRequest = data.seats !== undefined ? data.seats : subscription.seats;
+    if (seatsToRequest > plan.maxSeats) {
+      throw new BadRequestException(`${plan.name} plan only allows up to ${plan.maxSeats} seats.`);
     }
 
     if (data.seats !== undefined) {

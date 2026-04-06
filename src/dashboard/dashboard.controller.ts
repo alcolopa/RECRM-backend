@@ -16,13 +16,13 @@ export class DashboardController {
   @Get('stats')
   @Permissions(Permission.DASHBOARD_VIEW)
   async getStats(@Request() req: any, @Query('organizationId') organizationId: string) {
-    return this.dashboardService.getStats(organizationId);
+    return this.dashboardService.getStats(organizationId, req.user);
   }
 
   @Get('recent-leads')
   @Permissions(Permission.DASHBOARD_VIEW)
   async getRecentLeads(@Request() req: any, @Query('organizationId') organizationId: string) {
-    return this.dashboardService.getRecentLeads(organizationId);
+    return this.dashboardService.getRecentLeads(organizationId, req.user);
   }
 
   @Get('upcoming-tasks')
@@ -34,12 +34,12 @@ export class DashboardController {
   @Get('recent-activities')
   @Permissions(Permission.DASHBOARD_VIEW)
   async getRecentActivities(@Request() req: any, @Query('organizationId') organizationId: string) {
-    return this.dashboardService.getRecentActivities(organizationId);
+    return this.dashboardService.getRecentActivities(organizationId, req.user);
   }
 
   @Get('pipeline')
   @Permissions(Permission.DASHBOARD_VIEW)
   async getPipeline(@Request() req: any, @Query('organizationId') organizationId: string) {
-    return this.dashboardService.getPipelineData(organizationId);
+    return this.dashboardService.getPipelineData(organizationId, req.user);
   }
 }

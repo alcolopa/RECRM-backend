@@ -6,8 +6,9 @@ import { DealType, Prisma } from '@prisma/client';
 export class CommissionResolverService {
   constructor(private prisma: PrismaService) {}
 
-  async resolveCommission(dealId: string) {
-    const deal = await this.prisma.deal.findUnique({
+  async resolveCommission(dealId: string, client?: Prisma.TransactionClient) {
+    const prisma = client || this.prisma;
+    const deal = await prisma.deal.findUnique({
       where: { id: dealId },
       include: {
         commissionOverride: true,
@@ -40,7 +41,7 @@ export class CommissionResolverService {
         sellerCommission,
         agentCommission,
         totalCommission,
-      });
+      }, prisma);
     }
 
     // 2. Resolve parameters from Agent or Org
@@ -48,7 +49,7 @@ export class CommissionResolverService {
     const orgConfig = deal.organization.commissionConfig;
 
     const calculate = (base: Prisma.Decimal, value: number, type: any) => {
-      if (value === undefined || value === null) return new Prisma.Decimal(0);
+      if (value === undefined || value === null || !type) return new Prisma.Decimal(0);
       switch (type) {
         case 'PERCENTAGE':
           return base.mul(value).div(100);
@@ -83,7 +84,7 @@ export class CommissionResolverService {
         sellerCommission,
         totalCommission,
         agentCommission,
-      });
+      }, prisma);
     } else {
       // SALE
       const propertyPrice = new Prisma.Decimal(deal.propertyPrice?.toString() || '0');
@@ -107,12 +108,13 @@ export class CommissionResolverService {
         sellerCommission,
         totalCommission,
         agentCommission,
-      });
+      }, prisma);
     }
   }
 
-  private async updateDealCommission(dealId: string, data: any) {
-    return this.prisma.deal.update({
+  private async updateDealCommission(dealId: string, data: any, client?: Prisma.TransactionClient) {
+    const prisma = client || this.prisma;
+    return prisma.deal.update({
       where: { id: dealId },
       data,
     });
