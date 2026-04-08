@@ -60,10 +60,17 @@ export class MatchingService {
       };
     }
 
+    const intent = target.intent;
+    const isRentalIntent = intent === 'RENT' || intent === 'LEASE';
+    
     const whereClause: any = {
       organizationId,
       status: 'AVAILABLE',
-      listingType: target.intent,
+      listingType: {
+        in: isRentalIntent 
+          ? ['RENT', 'LEASE', 'SALE_AND_RENT'] 
+          : [intent, 'SALE_AND_RENT']
+      },
     };
 
     if (target.budgetMax) {
@@ -105,11 +112,20 @@ export class MatchingService {
     const pListingType = property.listingType as PropertyListingType;
     if (!pListingType) return [];
 
+    const intentsToMatch: PropertyListingType[] = [];
+    if (pListingType === 'SALE_AND_RENT') {
+      intentsToMatch.push('SALE', 'RENT', 'LEASE');
+    } else if (pListingType === 'RENT' || pListingType === 'LEASE') {
+      intentsToMatch.push('RENT', 'LEASE');
+    } else {
+      intentsToMatch.push(pListingType);
+    }
+
     const contacts = await this.prisma.contact.findMany({
       where: {
         organizationId,
         buyerProfile: {
-          intent: pListingType,
+          intent: { in: intentsToMatch },
         },
       },
       include: { buyerProfile: true },
@@ -118,7 +134,7 @@ export class MatchingService {
     const leads = await this.prisma.lead.findMany({
       where: {
         organizationId,
-        intent: pListingType,
+        intent: { in: intentsToMatch },
         status: {
           notIn: ['CLOSED_WON', 'LOST']
         }

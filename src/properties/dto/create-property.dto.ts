@@ -38,6 +38,7 @@ export enum PropertyListingType {
   SALE = 'SALE',
   RENT = 'RENT',
   LEASE = 'LEASE',
+  SALE_AND_RENT = 'SALE_AND_RENT',
 }
 
 export enum PropertyCondition {
