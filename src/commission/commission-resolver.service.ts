@@ -77,7 +77,12 @@ export class CommissionResolverService {
       const buyerCommission = calculate(rentPrice, buyerValue, buyerType);
       const sellerCommission = calculate(rentPrice, sellerValue, sellerType);
       const totalCommission = buyerCommission.plus(sellerCommission);
-      const agentCommission = calculate(rentPrice, agentValue, agentType);
+      
+      // Agent commission is calculated based on total agency commission for PERCENTAGE
+      // For FIXED or MULTIPLIER, it still uses the rentPrice as base (e.g. "0.5 months rent")
+      const agentCommission = agentType === 'PERCENTAGE' 
+        ? calculate(totalCommission, agentValue, agentType)
+        : calculate(rentPrice, agentValue, agentType);
 
       return this.updateDealCommission(dealId, {
         buyerCommission,
@@ -101,7 +106,11 @@ export class CommissionResolverService {
       const buyerCommission = calculate(propertyPrice, buyerValue, buyerType);
       const sellerCommission = calculate(propertyPrice, sellerValue, sellerType);
       const totalCommission = buyerCommission.plus(sellerCommission);
-      const agentCommission = calculate(propertyPrice, agentValue, agentType);
+      
+      // Agent commission is calculated based on total agency commission for PERCENTAGE
+      const agentCommission = agentType === 'PERCENTAGE'
+        ? calculate(totalCommission, agentValue, agentType)
+        : calculate(propertyPrice, agentValue, agentType);
 
       return this.updateDealCommission(dealId, {
         buyerCommission,

@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, Permission, ContactType, ContactStatus, LeadStatus, PropertyStatus, PropertyType, FinancingType, OfferStatus, ActivityType, TaskStatus, NegotiationStatus, ListingType, SellingTimeline, BuyingTimeline, PurchasePurpose, ReasonForSelling, DealStage, DealType, PropertyListingType, UrgencyLevel } from '@prisma/client';
+import { PrismaClient, UserRole, Permission, ContactType, ContactStatus, LeadStatus, PropertyStatus, PropertyType, FinancingType, OfferStatus, ActivityType, TaskStatus, NegotiationStatus, ListingType, SellingTimeline, BuyingTimeline, PurchasePurpose, ReasonForSelling, DealStage, DealType, PropertyListingType, UrgencyLevel, SubscriptionStatus, CalendarEventType, TaskPriority, OfferAction } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
@@ -65,8 +65,18 @@ async function main() {
 
   console.log('🧹 Clearing existing test data...');
   // Delete in order to respect constraints
+  await prisma.subscriptionAddon.deleteMany({});
+  await prisma.planAddon.deleteMany({});
+  await prisma.organizationSubscription.deleteMany({});
+  await prisma.subscriptionPlan.deleteMany({});
   await prisma.activity.deleteMany({});
+  await prisma.calendarEvent.deleteMany({});
   await prisma.task.deleteMany({});
+  await prisma.entityTag.deleteMany({});
+  await prisma.tag.deleteMany({});
+  await prisma.note.deleteMany({});
+  await prisma.file.deleteMany({});
+  await prisma.dealCommissionOverride.deleteMany({});
   await prisma.deal.deleteMany({});
   await prisma.offerHistory.deleteMany({});
   await prisma.offer.deleteMany({});
@@ -78,11 +88,48 @@ async function main() {
   await prisma.sellerProfile.deleteMany({});
   await prisma.contact.deleteMany({});
   await prisma.lead.deleteMany({});
+  await prisma.invitation.deleteMany({});
   await prisma.membership.deleteMany({});
   await prisma.customRole.deleteMany({});
   await prisma.commissionConfig.deleteMany({});
+  await prisma.agentCommissionConfig.deleteMany({});
   await prisma.organization.deleteMany({});
-  await prisma.user.deleteMany({ where: { email: { contains: '@' } } }); // Clean up all seeded users
+  await prisma.user.deleteMany({ where: { email: { contains: '@' } } }); 
+
+  // 0. Create Subscription Plans
+  console.log('💳 Seeding Subscription Plans...');
+  const plans = await Promise.all([
+    prisma.subscriptionPlan.create({
+      data: {
+        name: 'Starter',
+        priceMonthly: 0,
+        priceYearly: 0,
+        pricePerSeat: 0,
+        maxSeats: 3,
+        features: ['Up to 10 properties', 'Basic Analytics', '3 Team Members']
+      }
+    }),
+    prisma.subscriptionPlan.create({
+      data: {
+        name: 'Professional',
+        priceMonthly: 49,
+        priceYearly: 490,
+        pricePerSeat: 10,
+        maxSeats: 20,
+        features: ['Unlimited properties', 'Advanced Analytics', 'Automation', 'Custom Roles']
+      }
+    }),
+    prisma.subscriptionPlan.create({
+      data: {
+        name: 'Enterprise',
+        priceMonthly: 199,
+        priceYearly: 1990,
+        pricePerSeat: 15,
+        maxSeats: 100,
+        features: ['Everything in Pro', 'White Labeling', 'API Access', 'Dedicated Support']
+      }
+    })
+  ]);
 
   for (const config of orgConfigs) {
     console.log(`\n🏢 Building Organization: ${config.name}...`);
@@ -114,6 +161,21 @@ async function main() {
 
     await prisma.membership.create({
       data: { userId: owner.id, organizationId: org.id, role: UserRole.OWNER }
+    });
+
+    // 1.1 Create Subscription
+    const selectedPlan = faker.helpers.arrayElement(plans);
+    await prisma.organizationSubscription.create({
+      data: {
+        organizationId: org.id,
+        planId: selectedPlan.id,
+        status: SubscriptionStatus.ACTIVE,
+        seats: 10,
+        usedSeats: 1,
+        trialEndDate: faker.date.future(),
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: faker.date.future()
+      }
     });
 
     // 1.2 Create Commission Config
@@ -162,13 +224,32 @@ async function main() {
         await prisma.membership.create({
           data: { userId: user.id, organizationId: org.id, role: UserRole.AGENT, customRoleId: agentRole.id }
         });
+        // Agent Commission Overrides
+        await prisma.agentCommissionConfig.create({
+          data: {
+            agentId: user.id,
+            saleAgentValue: 45.0,
+            saleAgentType: 'PERCENTAGE',
+            rentAgentValue: 50.0,
+            rentAgentType: 'PERCENTAGE',
+            monthlyTarget: 500000
+          }
+        });
         return user;
       })
     );
 
     const team = [owner, ...agents];
 
-    // 1.5 Create Features for the system if they don't exist
+    // 1.3 Create Tags
+    const tags = await Promise.all([
+      prisma.tag.create({ data: { name: 'VIP', color: '#EF4444', organizationId: org.id } }),
+      prisma.tag.create({ data: { name: 'Hot', color: '#F59E0B', organizationId: org.id } }),
+      prisma.tag.create({ data: { name: 'Investor', color: '#10B981', organizationId: org.id } }),
+      prisma.tag.create({ data: { name: 'Follow-up', color: '#3B82F6', organizationId: org.id } }),
+    ]);
+
+    // 1.5 Create Features
     console.log(`   🛠️  Ensuring property features exist...`);
     const featureRecords = await Promise.all(
       FEATURES.map(name => 
@@ -180,7 +261,7 @@ async function main() {
       )
     );
 
-    // 2. Create Contacts & Profiles (50 per org)
+    // 2. Create Contacts & Profiles
     console.log(`   👥 Generating 50 active contacts for ${config.slug}...`);
     const contacts = await Promise.all(
       Array.from({ length: 50 }).map(async () => {
@@ -199,6 +280,23 @@ async function main() {
             createdAt: faker.date.past({ years: 1 })
           }
         });
+
+        // Add Notes
+        await prisma.note.create({
+          data: {
+            content: faker.lorem.sentence(),
+            organizationId: org.id,
+            contactId: contact.id,
+            createdById: faker.helpers.arrayElement(team).id
+          }
+        });
+
+        // Add Tags
+        if (faker.datatype.boolean()) {
+          await prisma.entityTag.create({
+            data: { contactId: contact.id, tagId: faker.helpers.arrayElement(tags).id }
+          });
+        }
 
         if (type !== ContactType.SELLER) {
           await prisma.buyerProfile.create({
@@ -235,13 +333,13 @@ async function main() {
       })
     );
 
-    // 3. Create Properties (40 per org)
+    // 3. Create Properties
     console.log(`   🏠 Listing 40 properties...`);
     const sellers = await prisma.sellerProfile.findMany({ where: { contact: { organizationId: org.id } } });
     const properties = await Promise.all(
       Array.from({ length: 40 }).map(async (_, index) => {
         const type = config.niche === 'commercial' 
-          ? faker.helpers.arrayElement([PropertyType.OFFICE, PropertyType.RETAIL, PropertyType.INDUSTRIAL, PropertyType.COMMERCIAL])
+          ? faker.helpers.arrayElement([PropertyType.OFFICE, PropertyType.RETAIL, PropertyType.INDUSTRIAL, PropertyType.BUILDING])
           : faker.helpers.arrayElement([PropertyType.HOUSE, PropertyType.APARTMENT, PropertyType.VILLA]);
         
         let title = '';
@@ -258,20 +356,24 @@ async function main() {
           images = URBAN_IMAGES;
         }
 
+        const listingType = faker.helpers.arrayElement(Object.values(PropertyListingType));
+        const price = config.niche === 'luxury' ? faker.number.int({ min: 2000000, max: 15000000 }) : faker.number.int({ min: 200000, max: 900000 });
+        const rentAmount = listingType !== 'SALE' ? (price / 200) : null;
+
         const prop = await prisma.property.create({
           data: {
             title,
             description: faker.lorem.paragraphs(3),
             address: faker.location.streetAddress(),
             city: faker.location.city(),
-            district: faker.location.county(), // Assign a random district
+            district: faker.location.county(),
             country: 'USA',
-            price: config.niche === 'luxury' ? faker.number.int({ min: 2000000, max: 15000000 }) : faker.number.int({ min: 200000, max: 900000 }),
+            price: listingType !== 'RENT' && listingType !== 'LEASE' ? price : null,
+            rentAmount: rentAmount,
             status: faker.helpers.arrayElement(Object.values(PropertyStatus)),
             type,
-            listingType: faker.helpers.arrayElement(Object.values(PropertyListingType)),
+            listingType,
             sizeSqm: faker.number.int({ min: 80, max: 2000 }),
-
             bedrooms: type === PropertyType.HOUSE || type === PropertyType.VILLA ? faker.number.int({ min: 2, max: 8 }) : (type === PropertyType.APARTMENT ? faker.number.int({ min: 1, max: 4 }) : null),
             bathrooms: type === PropertyType.HOUSE || type === PropertyType.VILLA ? faker.number.int({ min: 1, max: 6 }) : (type === PropertyType.APARTMENT ? faker.number.int({ min: 1, max: 3 }) : null),
             area: faker.number.int({ min: 80, max: 2000 }),
@@ -282,7 +384,7 @@ async function main() {
           }
         });
 
-        // Add 3-5 images per property
+        // Add 3-5 images
         const selectedImages = faker.helpers.arrayElements(images, faker.number.int({ min: 3, max: 5 }));
         await Promise.all(selectedImages.map(url => 
           prisma.propertyImage.create({
@@ -298,11 +400,22 @@ async function main() {
           })
         ));
 
+        // Add mock files
+        await prisma.file.create({
+          data: {
+            name: 'Deed.pdf',
+            url: 'https://example.com/deed.pdf',
+            mimeType: 'application/pdf',
+            size: 1024 * 500,
+            organizationId: org.id
+          }
+        });
+
         return prop;
       })
     );
 
-    // 4. Create Leads (30 per org)
+    // 4. Create Leads
     console.log(`   📈 Processing 30 new leads...`);
     await Promise.all(
       Array.from({ length: 30 }).map(() => 
@@ -328,7 +441,7 @@ async function main() {
       )
     );
 
-    // 5. Create Negotiations & Deal Flow (30 negotiations)
+    // 5. Create Negotiations
     console.log(`   🤝 Orchestrating 30 active negotiations...`);
     const buyers = await prisma.buyerProfile.findMany({ where: { contact: { organizationId: org.id } } });
     for (let i = 0; i < 30; i++) {
@@ -345,27 +458,26 @@ async function main() {
         }
       });
 
-      // Create 1-4 offers per negotiation
       const offerRounds = faker.number.int({ min: 1, max: 4 });
       for (let j = 0; j < offerRounds; j++) {
         const isLast = j === offerRounds - 1;
         const offer = await prisma.offer.create({
           data: {
-            price: Number(prop.price) * (0.85 + (j * 0.05)),
+            price: Number(prop.price || prop.rentAmount) * (0.85 + (j * 0.05)),
             financingType: faker.helpers.arrayElement(Object.values(FinancingType)),
             status: isLast ? OfferStatus.SUBMITTED : OfferStatus.COUNTERED,
             negotiationId: neg.id,
             organizationId: org.id,
             createdById: neg.createdById,
             offerer: j % 2 === 0 ? 'BUYER' : 'AGENCY',
+            type: prop.listingType === 'SALE' ? 'SALE' : 'RENT',
             createdAt: faker.date.recent({ days: 30 })
           }
         });
 
-        // Add history for each offer
         await prisma.offerHistory.create({
           data: {
-            action: 'OFFER_CREATED',
+            action: OfferAction.OFFER_CREATED,
             offerId: offer.id,
             userId: neg.createdById,
             offerer: offer.offerer
@@ -374,10 +486,9 @@ async function main() {
       }
     }
 
-    // 6. Dense Activity & Task Log
-    console.log(`   📅 Logging 100+ team activities...`);
+    // 6. Dense Activity & Task Log & Calendar
+    console.log(`   📅 Logging team activities & calendar events...`);
     for (const contact of contacts) {
-      // 2-3 Activities per contact
       for (let a = 0; a < faker.number.int({ min: 1, max: 3 }); a++) {
         await prisma.activity.create({
           data: {
@@ -392,8 +503,23 @@ async function main() {
         });
       }
 
-      // Tasks
       if (faker.datatype.boolean()) {
+        const agent = faker.helpers.arrayElement(team);
+        const start = faker.date.soon();
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        
+        const event = await prisma.calendarEvent.create({
+          data: {
+            title: `Meeting with ${contact.firstName}`,
+            startTime: start,
+            endTime: end,
+            type: CalendarEventType.SITE_VISIT,
+            organizationId: org.id,
+            userId: agent.id,
+            contactId: contact.id
+          }
+        });
+
         await prisma.task.create({
           data: {
             title: `Follow up with ${contact.firstName}`,
@@ -401,31 +527,31 @@ async function main() {
             status: faker.helpers.arrayElement(Object.values(TaskStatus)),
             dueDate: faker.date.future(),
             organizationId: org.id,
-            assignedUserId: faker.helpers.arrayElement(team).id
+            assignedUserId: agent.id,
+            calendarEventId: event.id,
+            priority: faker.helpers.arrayElement(Object.values(TaskPriority))
           }
         });
       }
     }
 
-    // 7. Create Deal Records (15 per org)
+    // 7. Create Deal Records
     console.log(`   💰 Seeding 15 deals for ${config.slug}...`);
     for (let i = 0; i < 15; i++) {
       const prop = faker.helpers.arrayElement(properties);
       const contact = faker.helpers.arrayElement(contacts);
       const stage = faker.helpers.arrayElement(Object.values(DealStage));
-      const type = faker.helpers.arrayElement([DealType.SALE, DealType.RENT]);
+      const type = prop.listingType === 'SALE' ? DealType.SALE : DealType.RENT;
       
       const value = type === DealType.SALE 
-        ? Number(prop.price) 
-        : Number(prop.price) / 100; // Mock rent as 1% of price
+        ? Number(prop.price || 500000) 
+        : Number(prop.rentAmount || 2500);
 
       const isWon = stage === DealStage.CLOSED_WON;
-      
-      // Calculate mock commissions
       const totalCommission = isWon ? value * 0.05 : 0;
       const agentCommission = isWon ? totalCommission * 0.4 : 0;
 
-      await prisma.deal.create({
+      const deal = await prisma.deal.create({
         data: {
           title: `${prop.title} - ${contact.firstName} ${contact.lastName}`,
           organizationId: org.id,
@@ -439,12 +565,38 @@ async function main() {
           rentPrice: type === DealType.RENT ? value : null,
           totalCommission: isWon ? totalCommission : null,
           agentCommission: agentCommission,
-          isAgentPaid: i < 3, // Mark first 3 deals as paid
+          isAgentPaid: i < 3,
           agentPaidAt: i < 3 ? new Date() : null,
           createdAt: faker.date.recent({ days: 120 }),
         }
       });
+
+      // Add Override for 20% of deals
+      if (faker.number.int({ min: 1, max: 5 }) === 1) {
+        await prisma.dealCommissionOverride.create({
+          data: {
+            dealId: deal.id,
+            buyerCommission: Number(totalCommission) * 0.6,
+            sellerCommission: Number(totalCommission) * 0.4,
+            agentCommission: Number(agentCommission) * 1.1,
+            notes: 'Special performance bonus'
+          }
+        });
+      }
     }
+
+    // 8. Invitations
+    await prisma.invitation.create({
+      data: {
+        email: `new-hire@${config.slug}.com`,
+        organizationId: org.id,
+        inviterId: owner.id,
+        role: UserRole.AGENT,
+        token: faker.string.uuid(),
+        expiresAt: faker.date.future(),
+        status: 'PENDING'
+      }
+    });
   }
 
   console.log('\n🌟 MEGA SEEDING COMPLETE - EstateHub is now ALIVE!');
@@ -458,6 +610,7 @@ async function main() {
   console.log('📊 TOTAL DATA GENERATED:');
   console.log(`   - Organizations:  3`);
   console.log(`   - Users:          ~20`);
+  console.log(`   - Plans:          3`);
   console.log(`   - Leads:          90`);
   console.log(`   - Contacts:       150`);
   console.log(`   - Properties:     120`);
