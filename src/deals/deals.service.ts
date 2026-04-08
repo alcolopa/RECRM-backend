@@ -171,11 +171,11 @@ export class DealsService {
 
     const stats = Object.values(DealStage).map(stage => {
       const stageDeals = deals.filter(d => d.stage === stage);
-      const totalValue = stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+      const totalValue = stageDeals.reduce((sum, d) => sum.plus(d.value || 0), new Prisma.Decimal(0));
       return {
         stage,
         count: stageDeals.length,
-        value: totalValue
+        value: totalValue.toNumber()
       };
     });
 

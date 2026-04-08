@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { OfferStatus, LeadStatus, TaskStatus, Permission } from '@prisma/client';
+import { OfferStatus, LeadStatus, TaskStatus, Permission, Prisma } from '@prisma/client';
 import { AccessControlService } from '../common/access-control.service';
 
 @Injectable()
@@ -81,11 +81,11 @@ export class DashboardService {
 
     return stages.map(stage => {
       const stageDeals = deals.filter(d => d.stage === stage.key);
-      const totalValue = stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+      const totalValue = stageDeals.reduce((sum, d) => sum.plus(d.value || 0), new Prisma.Decimal(0));
       return {
         stage: stage.label,
         count: stageDeals.length,
-        value: totalValue
+        value: totalValue.toNumber()
       };
     });
   }

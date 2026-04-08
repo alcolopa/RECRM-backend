@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DealStage, Permission } from '@prisma/client';
+import { DealStage, Permission, Prisma } from '@prisma/client';
 import { AccessControlService } from '../common/access-control.service';
 
 @Injectable()
@@ -38,12 +38,12 @@ export class PayoutsService {
       }
     });
 
-    const totalSales = deals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
-    const totalCommissions = deals.reduce((sum, d) => sum + (Number(d.totalCommission) || 0), 0);
-    const agentCommissions = deals.reduce((sum, d) => sum + (Number(d.agentCommission) || 0), 0);
+    const totalSalesDecimal = deals.reduce((sum, d) => sum.plus(d.value || 0), new Prisma.Decimal(0));
+    const totalCommissionsDecimal = deals.reduce((sum, d) => sum.plus(d.totalCommission || 0), new Prisma.Decimal(0));
+    const agentCommissionsDecimal = deals.reduce((sum, d) => sum.plus(d.agentCommission || 0), new Prisma.Decimal(0));
     
     // Profit = Total Commission - Agent Payout
-    const totalProfit = totalCommissions - agentCommissions;
+    const totalProfitDecimal = totalCommissionsDecimal.minus(agentCommissionsDecimal);
 
     // Aggregate by agent for the payout list
     const agentMap = new Map();
@@ -55,18 +55,18 @@ export class PayoutsService {
           id: agentId,
           name: `${deal.assignedUser?.firstName} ${deal.assignedUser?.lastName}`,
           email: deal.assignedUser?.email,
-          totalSales: 0,
-          pendingPayout: 0,
-          paidPayout: 0,
+          totalSales: new Prisma.Decimal(0),
+          pendingPayout: new Prisma.Decimal(0),
+          paidPayout: new Prisma.Decimal(0),
           deals: []
         });
       }
       const stats = agentMap.get(agentId);
-      stats.totalSales += Number(deal.value) || 0;
+      stats.totalSales = stats.totalSales.plus(deal.value || 0);
       if (deal.isAgentPaid) {
-        stats.paidPayout += Number(deal.agentCommission) || 0;
+        stats.paidPayout = stats.paidPayout.plus(deal.agentCommission || 0);
       } else {
-        stats.pendingPayout += Number(deal.agentCommission) || 0;
+        stats.pendingPayout = stats.pendingPayout.plus(deal.agentCommission || 0);
       }
       stats.deals.push({
         id: deal.id,
@@ -81,12 +81,17 @@ export class PayoutsService {
 
     return {
       summary: {
-        totalSales,
-        totalCommissions,
-        agentPayouts: agentCommissions,
-        totalProfit
+        totalSales: totalSalesDecimal.toNumber(),
+        totalCommissions: totalCommissionsDecimal.toNumber(),
+        agentPayouts: agentCommissionsDecimal.toNumber(),
+        totalProfit: totalProfitDecimal.toNumber()
       },
-      agents: Array.from(agentMap.values())
+      agents: Array.from(agentMap.values()).map((agent: any) => ({
+        ...agent,
+        totalSales: agent.totalSales.toNumber(),
+        pendingPayout: agent.pendingPayout.toNumber(),
+        paidPayout: agent.paidPayout.toNumber()
+      }))
     };
   }
 
@@ -112,17 +117,17 @@ export class PayoutsService {
       })
     ]);
 
-    const totalSales = deals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
-    const pendingPayout = deals.filter(d => !d.isAgentPaid).reduce((sum, d) => sum + (Number(d.agentCommission) || 0), 0);
-    const totalPaid = deals.filter(d => d.isAgentPaid).reduce((sum, d) => sum + (Number(d.agentCommission) || 0), 0);
-    const totalEarned = pendingPayout + totalPaid;
+    const totalSalesDecimal = deals.reduce((sum, d) => sum.plus(d.value || 0), new Prisma.Decimal(0));
+    const pendingPayoutDecimal = deals.filter(d => !d.isAgentPaid).reduce((sum, d) => sum.plus(d.agentCommission || 0), new Prisma.Decimal(0));
+    const totalPaidDecimal = deals.filter(d => d.isAgentPaid).reduce((sum, d) => sum.plus(d.agentCommission || 0), new Prisma.Decimal(0));
+    const totalEarnedDecimal = pendingPayoutDecimal.plus(totalPaidDecimal);
 
     return {
-      totalSales,
+      totalSales: totalSalesDecimal.toNumber(),
       targetSales: Number(commissionConfig?.monthlyTarget) || 0,
-      totalEarned,
-      pendingPayout,
-      totalPaid,
+      totalEarned: totalEarnedDecimal.toNumber(),
+      pendingPayout: pendingPayoutDecimal.toNumber(),
+      totalPaid: totalPaidDecimal.toNumber(),
       deals: deals.map(d => ({
         id: d.id,
         title: d.title,
