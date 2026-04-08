@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateDealDto, UpdateDealDto } from './dto/deal.dto';
 import { DealStage, Permission } from '@prisma/client';
 import { CommissionResolverService } from '../commission/commission-resolver.service';
@@ -14,7 +15,7 @@ export class DealsService {
     private commissionResolver: CommissionResolverService,
     private subscriptionService: SubscriptionService,
     private acl: AccessControlService,
-  ) {}
+  ) { }
 
   async findAll(organizationId: string, user: { userId: string }) {
     const ctx = await this.acl.getAccessContext(user.userId, organizationId);
@@ -88,7 +89,7 @@ export class DealsService {
 
   async update(id: string, updateDealDto: UpdateDealDto, organizationId: string, user?: { userId: string }) {
     const deal = await this.findOne(id, organizationId, user);
-    
+
     return await this.prisma.$transaction(async (tx) => {
       const updatedDeal = await tx.deal.update({
         where: { id },
@@ -134,7 +135,7 @@ export class DealsService {
       }
 
       await this.commissionResolver.resolveCommission(id, tx);
-      
+
       return tx.deal.findUnique({
         where: { id },
         include: {
